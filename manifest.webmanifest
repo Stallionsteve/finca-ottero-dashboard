@@ -1,0 +1,14 @@
+{
+  "name": "Finca Ottero",
+  "short_name": "Finca Ottero",
+  "start_url": "index.html#home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0f24",
+  "theme_color": "#0a0f24",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
