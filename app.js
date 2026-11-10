@@ -624,6 +624,9 @@
           ${stat("Grid", "", e.grid === null ? null : kw(e.grid), "kW", e.grid === null ? "No reading" : e.grid > 30 ? "Importing" : e.grid < -30 ? "Exporting" : "Idle")}
         </div>
       </div>
+      ${(() => { const items = [["automation.finca_announce_battery_low", "Battery at 10 %"], ["automation.finca_announce_grid_failure", "Grid goes down / comes back"]].map(([id, label]) => [st(id), label]).filter(([x]) => x);
+        return items.length ? `<article class="card"><div class="card-head"><span class="ico" style="--tint:var(--sunset)">${icon("alexa")}</span><div class="grow"><h3>Spoken power alerts</h3><div class="row-sub">On every Alexa and Sonos speaker, 11:00–21:00</div></div></div>
+          ${items.map(([x, label]) => `<div class="row"><div class="row-body"><div class="row-title">${label}</div><div class="row-sub">${x.attributes.last_triggered ? "Last " + ago(x.attributes.last_triggered) : "Not triggered yet"}</div></div>${sw(x.entity_id, x.state === "on", label, "sunset")}</div>`).join("")}</article>` : ""; })()}
       <article class="card chart">
         <div class="card-head" style="flex-wrap:wrap"><div class="grow"><h3>Today</h3><div class="row-sub">Solar production and home use, kW</div></div>
           <div class="legend"><span><i style="background:var(--sunset)"></i>Solar</span><span><i style="background:var(--turq)"></i>Home use</span></div></div>
