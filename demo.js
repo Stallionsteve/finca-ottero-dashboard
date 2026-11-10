@@ -61,6 +61,11 @@ window.FincaDemo = (() => {
     mp("media_player.terrace", "Terrace", "terrace", "paused");
     mp("media_player.master_bedroom", "Master Bedroom", "master", "idle");
     ent("script.finca_ac_command", "off", { friendly_name: "Finca: air conditioning via Alexa" }, { platform: "script" });
+    ent("automation.finca_climate_air_con_on_spare_power", "off", { friendly_name: "Finca climate: air con on spare power" }, { platform: "automation" });
+    ent("binary_sensor.finca_climate_power_available", "on", { friendly_name: "Finca climate power available" }, { platform: "template" });
+    ent("sensor.finca_climate_mode", "heat", { friendly_name: "Finca climate mode" }, { platform: "template" });
+    sensor("sensor.venus_ac_loads_on_l1", 1070, "W", "Venus AC loads on L1");
+    sensor("sensor.venus_ac_loads_on_l2", 21, "W", "Venus AC loads on L2");
     ent("weather.home", "sunny", { friendly_name: "Home", temperature: 24 }, { platform: "met" });
   }
 
@@ -90,6 +95,8 @@ window.FincaDemo = (() => {
         if (id === "switch.main_gate") return; // momentary: stays off
         set(id, service === "turn_on" || (service === "toggle" && store.states[id].state !== "on") ? "on" : "off");
       });
+    } else if (domain === "automation") {
+      list.forEach(id => set(id, service === "turn_on" || (service === "toggle" && store.states[id].state !== "on") ? "on" : "off"));
     } else if (domain === "media_player") {
       list.forEach(id => {
         const s = store.states[id];

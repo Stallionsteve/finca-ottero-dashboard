@@ -47,9 +47,17 @@ window.FINCA_CONFIG = {
   // The two air conditioners controlled through Alexa (Alexa Media Player integration).
   // `echo` is the Echo that receives the command. Alexa does not report their state back.
   alexaAC: [
-    { id: "living", name: "Living Room", alexaName: "living room air con" },
-    { id: "master", name: "Master Bedroom", alexaName: "master bedroom air con" }
+    { id: "living", name: "Living Room", alexaName: "living room air con", power: "sensor.venus_ac_loads_on_l1" },
+    { id: "master", name: "Master Bedroom", alexaName: "master bedroom air con", power: "sensor.venus_ac_loads_on_l2" }
   ],
+
+  // Automatic air con on spare power (Home Assistant automation; the app shows a switch for it).
+  climateAuto: {
+    automation: "automation.finca_climate_air_con_on_spare_power",
+    powerAvailable: "binary_sensor.finca_climate_power_available",
+    mode: "sensor.finca_climate_mode",
+    flags: { living: "switch.finca_auto_air_con_living_room", master: "switch.finca_auto_air_con_master_bedroom" }
+  },
 
   jarvis: {
     pipelineName: /jarvis/i,   // which Assist pipeline to talk to

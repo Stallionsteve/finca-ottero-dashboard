@@ -7,6 +7,11 @@
   const C = window.FINCA_CONFIG;
   const Demo = window.FincaDemo;
   window.FincaAppLoaded = true;
+  // Defaults for settings added after the first install, so an older config.js still gets them.
+  C.climateAuto = C.climateAuto || { automation: "automation.finca_climate_air_con_on_spare_power", powerAvailable: "binary_sensor.finca_climate_power_available",
+    mode: "sensor.finca_climate_mode", flags: { living: "switch.finca_auto_air_con_living_room", master: "switch.finca_auto_air_con_master_bedroom" } };
+  const AC_POWER = { living: "sensor.venus_ac_loads_on_l1", master: "sensor.venus_ac_loads_on_l2" };
+  C.alexaAC.forEach(u => { u.power = u.power || AC_POWER[u.id]; if (/air conditioner$/.test(u.alexaName)) u.alexaName = u.alexaName.replace("air conditioner", "air con"); });
 
   // Logo: a geodesic dome against a retro sunset. Set here so a logo change arrives with app updates.
   const LOGO = `<svg viewBox="0 0 64 64" aria-hidden="true">
@@ -410,12 +415,20 @@
       ${(a.fan_modes || []).length ? `<div class="seg-row">${icon("fan").replace("<svg", '<svg style="width:20px;height:20px;align-self:center;color:var(--muted)"')}${a.fan_modes.map(m => `<button class="seg-btn" aria-pressed="${a.fan_mode === m}" data-fan="${s.entity_id}" data-mode="${m}">${esc(m)}</button>`).join("")}</div>` : ""}
     </article>`;
   }
+  function acPower(u) { return u.power ? num(u.power) : null; }
   function alexaCard(u) {
     const t = mem.get("ac." + u.id + ".t", 22), last = mem.get("ac." + u.id + ".last", null);
-    return `<article class="card">
+    const w = acPower(u), running = w !== null && w >= 300;
+    const auto = st((C.climateAuto || {}).flags ? C.climateAuto.flags[u.id] : "");
+    return `<article class="card ${running ? "is-on" : ""}" style="--tint:var(--sunset)">
       <div class="card-head">
-        <span class="ico">${icon("snow")}</span>
-        <div class="grow"><h3>${esc(u.name)}</h3><div class="row-sub">Air conditioning via Alexa · state not reported</div></div>
+        <span class="ico" style="${running ? "--tint:var(--sunset)" : ""}">${icon(running ? "heater" : "snow")}</span>
+        <div class="grow"><h3>${esc(u.name)}</h3><div class="row-sub">${w === null ? "Air con via Alexa" : running ? `Running · ${kw(w)} kW` : `Off or idle · ${Math.round(w)} W`}${auto && auto.state === "on" ? " · started automatically" : ""}</div></div>
+        <span class="pill ${running ? "hot" : ""}">${running ? "Running" : "Off"}</span>
+      </div>
+      <div class="seg-row" style="margin-top:0">
+        <button class="seg-btn" data-acquick="${u.id}" data-mode="heat" style="color:var(--sunset)">${icon("heater").replace("<svg", '<svg style="width:18px;height:18px;vertical-align:-3px"')} Heat 23°</button>
+        <button class="seg-btn" data-acquick="${u.id}" data-mode="cool" style="color:var(--turq)">${icon("snow").replace("<svg", '<svg style="width:18px;height:18px;vertical-align:-3px"')} Cool 23°</button>
       </div>
       <div class="seg-row" style="margin-top:0"><button class="seg-btn" data-ac="${u.id}" data-cmd="on">${icon("power").replace("<svg", '<svg style="width:18px;height:18px;vertical-align:-3px"')} On</button><button class="seg-btn" data-ac="${u.id}" data-cmd="off">Off</button></div>
       <div class="stepper">
@@ -426,7 +439,19 @@
       </div>
       <div class="seg-row">${["cool", "heat", "auto"].map(m => `<button class="seg-btn" data-ac="${u.id}" data-cmd="mode" data-val="${m}">${m}</button>`).join("")}</div>
       <div class="seg-row">${["low", "medium", "high", "auto"].map(m => `<button class="seg-btn" data-ac="${u.id}" data-cmd="fan" data-val="${m}">Fan ${m}</button>`).join("")}</div>
-      <p class="note" style="margin-top:12px">${icon("alexa")}<span>${last ? `Last sent ${ago(last.at)}: “${esc(last.phrase)}”` : "Commands go to Alexa, which tells the unit. Alexa doesn't report the unit's state back."}</span></p>
+      <p class="note" style="margin-top:12px">${icon("alexa")}<span>${last ? `Last sent ${ago(last.at)}: “${esc(last.phrase)}”. ` : ""}Commands go through Alexa; Home Assistant confirms each one from the unit's power use and retries through another speaker if needed.</span></p>
+    </article>`;
+  }
+  function autoCard() {
+    const A = C.climateAuto || {}; const a = st(A.automation); if (!a && store.mode !== "demo") return "";
+    const on = a ? a.state === "on" : false, avail = st(A.powerAvailable), mode = st(A.mode);
+    return `<article class="card ${on ? "is-on" : ""}" style="--tint:var(--turq)">
+      <div class="card-head" style="margin-bottom:6px">
+        <span class="ico">${icon("sun")}</span>
+        <div class="grow"><h3>Air con on spare power</h3><div class="row-sub">${on ? "On" : "Off"} · spare power ${avail && avail.state === "on" ? "available now" : "not available now"} · season: ${esc(mode ? mode.state : "—")}</div></div>
+        ${a ? sw(a.entity_id, on, "Air con on spare power") : ""}
+      </div>
+      <p class="note">${icon("info")}<span>When the battery is over 50 % or solar gives 2.5 kW, both units heat or cool to 23 °C (season and outside temperature decide which), and switch off when that power runs out. Units you start yourself are never switched off by it.</span></p>
     </article>`;
   }
   function viewClimate() {
@@ -435,6 +460,7 @@
     return `<section class="view">
       <div class="page-head"><div><h1>Climate</h1><p>Air conditioning · temperatures in °C</p></div></div>
       ${climates.length ? `<div class="grid g-2">${climates.map(climateCard).join("")}</div>` : ""}
+      ${autoCard()}
       <h2 class="section">Through Alexa</h2>
       ${acReady ? `<div class="grid g-2">${C.alexaAC.map(alexaCard).join("")}</div>`
         : '<p class="empty">The living room and master bedroom units need the Alexa Media Player integration and the Finca package installed in Home Assistant. See the setup guide.</p>'}
@@ -649,13 +675,22 @@
     pending = false;
     const v = current();
     renderNav(location.hash === "#jarvis" ? "jarvis" : v);
+    // Keep already-loaded camera pictures: rebuilding them on every redraw made them blink.
+    const keep = {};
+    document.querySelectorAll("#main img[data-cam]").forEach(img => { keep[img.dataset.cam] = img; });
     $("#main").innerHTML = VIEWS[v]();
+    document.querySelectorAll("#main img[data-cam]").forEach(img => { const old = keep[img.dataset.cam]; if (old && old.complete && old.naturalWidth) img.replaceWith(old); });
     $("#conn").textContent = store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…";
     $("#conn").className = "conn" + (store.mode === "demo" ? " demo" : "");
     if (scroll) window.scrollTo(0, 0);
   }
-  let raf = 0;
-  const scheduleRender = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(false); }); };
+  // Readings change every second; redraw at most every 1.5 s.
+  let renderTimer = 0, lastRender = 0;
+  const scheduleRender = () => {
+    if (renderTimer) return;
+    const wait = Math.max(0, 1500 - (Date.now() - lastRender));
+    renderTimer = setTimeout(() => { renderTimer = 0; lastRender = Date.now(); requestAnimationFrame(() => render(false)); }, wait);
+  };
 
   // ---------- sheets ----------
   function sheet(html, wide = false) {
@@ -700,12 +735,12 @@
     let types = [];
     try { types = (await store.conn.sendMessagePromise({ type: "camera/capabilities", entity_id: id })).frontend_stream_types || []; } catch { /* older Home Assistant */ }
     if (types.includes("web_rtc") && window.RTCPeerConnection) {
-      try { await webrtc(id); return; } catch (e) { if (!types.includes("hls")) { say(`Live view didn't start (${e.message || e.code || e}).`); return; } }
+      try { await webrtc(id); return; } catch (e) { if (!types.includes("hls")) { say(`Live view didn't start (${e.message || e.code || e}). The Ring app always has live view.`); return; } }
     }
     try {
       const r = await store.conn.sendMessagePromise({ type: "camera/stream", entity_id: id });
       $("#live-box").innerHTML = `<video src="${esc(store.hassUrl + r.url)}" autoplay playsinline muted controls></video>`;
-    } catch (e) { say(`Live view didn't start (${e.message || e.code || e}).`); }
+    } catch (e) { say(`Live view didn't start (${e.message || e.code || e}). The Ring app always has live view.`); }
   }
   async function webrtc(id) {
     stopLive();
@@ -864,7 +899,7 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acstep],[data-media],[data-live],[data-colour],[data-ask],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-colour],[data-ask],#jmic");
     if (!t) return;
     const d = t.dataset;
     if (t.id === "jmic") { listen(); return; }
@@ -879,6 +914,18 @@
     if (d.temp) { const s = st(d.temp); svc("climate", "set_temperature", { temperature: Math.round((s.attributes.temperature + parseFloat(d.delta)) * 10) / 10 }, { entity_id: d.temp }); return; }
     if (d.hvac) { svc("climate", "set_hvac_mode", { hvac_mode: d.mode }, { entity_id: d.hvac }); return; }
     if (d.fan) { svc("climate", "set_fan_mode", { fan_mode: d.mode }, { entity_id: d.fan }); return; }
+    if (d.acquick) {
+      const u = C.alexaAC.find(x => x.id === d.acquick);
+      const run = async () => {
+        for (const [cmd, val] of [["mode", d.mode], ["temp", "23"], ["on", ""]]) {
+          await svc("script", "turn_on", { variables: { unit: u.id, command: cmd, value: val } }, { entity_id: "script.finca_ac_command" });
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      };
+      toast(`Asking Alexa to ${d.mode} the ${u.name.toLowerCase()} to 23 °C…`);
+      run().then(() => { mem.set("ac." + u.id + ".last", { at: new Date().toISOString(), phrase: `${d.mode} to 23 degrees` }); toast(`${u.name}: ${d.mode} to 23 °C sent. Power check in 3½ minutes.`); render(false); }).catch(() => {});
+      return;
+    }
     if (d.acstep) { const k = "ac." + d.acstep + ".t"; mem.set(k, Math.max(16, Math.min(30, mem.get(k, 22) + parseInt(d.delta, 10)))); render(false); return; }
     if (d.ac) {
       const u = C.alexaAC.find(x => x.id === d.ac);
@@ -954,7 +1001,13 @@
   function tick() { const d = new Date(); $("#clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
   setInterval(() => {
     tick();
-    document.querySelectorAll("img[data-cam]").forEach(img => { const s = st(img.dataset.cam); if (s && s.attributes.entity_picture) img.src = store.hassUrl + s.attributes.entity_picture + "&t=" + Date.now(); });
+    // Refresh pictures by loading the new one first, then swapping it in (no blank frame).
+    document.querySelectorAll("img[data-cam]").forEach(img => {
+      const s = st(img.dataset.cam); if (!s || !s.attributes.entity_picture) return;
+      const next = new Image();
+      next.onload = () => { img.src = next.src; };
+      next.src = store.hassUrl + s.attributes.entity_picture + "&t=" + Date.now();
+    });
     if (!$("#layer").innerHTML) scheduleRender();
   }, 30000);
   tick();
