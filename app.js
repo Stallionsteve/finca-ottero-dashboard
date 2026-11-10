@@ -8,6 +8,41 @@
   const Demo = window.FincaDemo;
   window.FincaAppLoaded = true;
 
+  // Logo: two otters curled into a yin-yang. Set here so a logo change arrives with app updates.
+  const LOGO = `<svg viewBox="0 0 64 64" aria-hidden="true">
+  <defs>
+    <linearGradient id="fo-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ee6d6"/><stop offset="1" stop-color="#ff5c8a"/></linearGradient>
+    <linearGradient id="fo-coral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="0.6" stop-color="#ff7a5c"/><stop offset="1" stop-color="#ff5c8a"/></linearGradient>
+    <linearGradient id="fo-turq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ff3e8"/><stop offset="1" stop-color="#149e94"/></linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="31" fill="#0a0f24"/>
+  <!-- coral otter: left half with its head in the top bulb -->
+  <path d="M32 6 A26 26 0 0 0 32 58 A13 13 0 0 1 32 32 A13 13 0 0 0 32 6 Z" fill="url(#fo-coral)"/>
+  <!-- turquoise otter: right half with its head in the bottom bulb -->
+  <path d="M32 6 A26 26 0 0 1 32 58 A13 13 0 0 1 32 32 A13 13 0 0 0 32 6 Z" fill="url(#fo-turq)"/>
+  <!-- coral otter's face -->
+  <circle cx="23.6" cy="15.4" r="2.1" fill="#ffc7a3"/><circle cx="23.6" cy="15.4" r="0.9" fill="#e0557a"/>
+  <circle cx="40.4" cy="15.4" r="2.1" fill="#ffc7a3"/><circle cx="40.4" cy="15.4" r="0.9" fill="#e0557a"/>
+  <ellipse cx="32" cy="19.8" rx="9.2" ry="7.4" fill="#ffc7a3"/>
+  <ellipse cx="32" cy="22.6" rx="4.2" ry="2.9" fill="#fff0e4"/>
+  <path d="M27.6 18.4 q1.6 -1.6 3.2 0 M33.2 18.4 q1.6 -1.6 3.2 0" stroke="#1a1030" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+  <ellipse cx="32" cy="21.4" rx="1.4" ry="1" fill="#1a1030"/>
+  <path d="M27.8 22.6 l-4.2 -0.8 M27.8 23.8 l-4.2 0.6 M36.2 22.6 l4.2 -0.8 M36.2 23.8 l4.2 0.6" stroke="#e0557a" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- turquoise otter's face -->
+  <circle cx="23.6" cy="40.9" r="2.1" fill="#b5fbf5"/><circle cx="23.6" cy="40.9" r="0.9" fill="#0f7f77"/>
+  <circle cx="40.4" cy="40.9" r="2.1" fill="#b5fbf5"/><circle cx="40.4" cy="40.9" r="0.9" fill="#0f7f77"/>
+  <ellipse cx="32" cy="45.3" rx="9.2" ry="7.4" fill="#b5fbf5"/>
+  <ellipse cx="32" cy="48.1" rx="4.2" ry="2.9" fill="#effffd"/>
+  <path d="M27.6 43.9 q1.6 -1.6 3.2 0 M33.2 43.9 q1.6 -1.6 3.2 0" stroke="#0a1f2a" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+  <ellipse cx="32" cy="46.9" rx="1.4" ry="1" fill="#0a1f2a"/>
+  <path d="M27.8 48.1 l-4.2 -0.8 M27.8 49.3 l-4.2 0.6 M36.2 48.1 l4.2 -0.8 M36.2 49.3 l4.2 0.6" stroke="#0f7f77" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- paws resting on each other -->
+  <ellipse cx="40.6" cy="31.2" rx="3.2" ry="2.1" fill="#ff8a5c" transform="rotate(-25 40.6 31.2)"/>
+  <ellipse cx="23.4" cy="33" rx="3.2" ry="2.1" fill="#3fd6c9" transform="rotate(-25 23.4 33)"/>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="url(#fo-ring)" stroke-width="2"/>
+</svg>`;
+  { const old = document.querySelector(".brand svg"); if (old) old.outerHTML = LOGO; }
+
   // ---------- icons (one line style: 24px grid, 1.75 stroke, round caps) ----------
   const P = {
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
