@@ -11,6 +11,8 @@
   C.climateAuto = C.climateAuto || { automation: "automation.finca_climate_air_con_on_spare_power", powerAvailable: "binary_sensor.finca_climate_power_available",
     mode: "sensor.finca_climate_mode", flags: { living: "switch.finca_auto_air_con_living_room", master: "switch.finca_auto_air_con_master_bedroom" } };
   const AC_POWER = { living: "sensor.venus_ac_loads_on_l1", master: "sensor.venus_ac_loads_on_l2" };
+  // The bedroom unit cycles (≈400 W for a few minutes, then ≈30 W), so it counts as running if it peaked in the last 15 minutes.
+  const AC_PEAK = { master: "sensor.solar_room_venus_finca_master_air_con_peak" };
   const ROOM_TEMP = { living: "sensor.hue_motion_sensor_3_temperature", master: "sensor.finca_master_bedroom_temperature" };  // bedroom = hallway − 2 °C
   C.alexaAC.forEach(u => { u.power = u.power || AC_POWER[u.id]; u.temp = u.temp || ROOM_TEMP[u.id]; if (/air conditioner$/.test(u.alexaName)) u.alexaName = u.alexaName.replace("air conditioner", "air con"); });
 
@@ -424,12 +426,13 @@
   function acPower(u) { return u.power ? num(u.power) : null; }
   function alexaCard(u) {
     const t = mem.get("ac." + u.id + ".t", 22), last = mem.get("ac." + u.id + ".last", null);
-    const w = acPower(u), running = w !== null && w >= 300;
+    const w = acPower(u), pk = AC_PEAK[u.id] ? num(AC_PEAK[u.id]) : null;
+    const running = (w !== null && w >= 300) || (pk !== null && pk >= 300);
     const auto = st((C.climateAuto || {}).flags ? C.climateAuto.flags[u.id] : "");
     return `<article class="card ${running ? "is-on" : ""}" style="--tint:var(--sunset)">
       <div class="card-head">
         <span class="ico" style="${running ? "--tint:var(--sunset)" : ""}">${icon(running ? "heater" : "snow")}</span>
-        <div class="grow"><h3>${esc(u.name)}</h3><div class="row-sub">${w === null ? "Air con via Alexa" : running ? `Running · ${kw(w)} kW` : `Off or idle · ${Math.round(w)} W`}${auto && auto.state === "on" ? " · started automatically" : ""}</div></div>
+        <div class="grow"><h3>${esc(u.name)}</h3><div class="row-sub">${w === null ? "Air con via Alexa" : running ? (w >= 300 ? `Running · ${kw(w)} kW` : `Running · holding temperature`) : `Off or idle · ${Math.round(w)} W`}${auto && auto.state === "on" ? " · started automatically" : ""}</div></div>
         ${u.temp && num(u.temp) !== null ? `<span class="temp" style="font-size:28px" title="${u.id === "master" ? "Estimated from the hallway − 2 °C" : "Room temperature"}">${u.id === "master" ? "≈" : ""}${num(u.temp).toFixed(1)}<small>°C</small></span>` : ""}
         <span class="pill ${running ? "hot" : ""}">${running ? "Running" : "Off"}</span>
       </div>
