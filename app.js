@@ -468,12 +468,13 @@
     </section>`;
   }
 
+  const camName = s => nm(s).replace(/\s+live view$/i, "");
   function camCard(s) {
     const pic = s.attributes.entity_picture;
     return `<article class="card">
       <div class="cam-view">${pic && ok(s) ? `<img data-cam="${s.entity_id}" alt="Latest image from ${esc(nm(s))}">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No snapshot yet" : "Camera offline"}</span></div>`}
         <span class="pill tag">${ok(s) ? "Snapshot" : "Offline"}</span></div>
-      <div class="cam-meta"><div><b>${esc(nm(s))}</b><div class="row-sub">${esc(areaOf(s.entity_id) || platformOf(s.entity_id) || "")}</div></div>
+      <div class="cam-meta"><div><b>${esc(camName(s))}</b><div class="row-sub">${s.last_changed ? "Updated " + ago(s.last_changed) : ""}</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
           ${s.attributes.video_url ? `<button class="btn btn-sm btn-ghost" data-clip="${s.entity_id}">Last recording</button>` : ""}
           ${ok(s) ? `<button class="btn btn-sm" data-live="${s.entity_id}">Live view</button>` : ""}</div></div>
@@ -493,7 +494,7 @@
             <div class="grow"><h3>${esc(nm(a))}</h3><div class="row-sub">Status only · changed ${ago(a.last_changed)}</div></div>
             <span class="pill ${a.state === "disarmed" ? "ok" : "warn"}">${esc(alarmLabel(a))}</span></div>
           <p class="note">${icon("lock")}<span>Arm and disarm with the Ring app or keypad. This app never changes the alarm.</span></p></article>`).join("")
-          : '<p class="empty">No alarm found in Home Assistant. The Ring integration shows the alarm when it is added.</p>'}
+          : ""}
         ${activity.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>Recent activity</h3></div></div>
           ${activity.map(s => `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ago(s.last_changed)}</div></div></div>`).join("")}</article>` : ""}
       </div>
@@ -647,7 +648,7 @@
   }
 
   function viewMedia() {
-    const players = all("media_player").sort((a, b) => (platformOf(b.entity_id) === "sonos") - (platformOf(a.entity_id) === "sonos") || nm(a).localeCompare(nm(b)));
+    const players = all("media_player").filter(s => !["alexa_devices", "alexa_media", "mobile_app"].includes(platformOf(s.entity_id)) && !/^this device$/i.test(nm(s))).sort((a, b) => (platformOf(b.entity_id) === "sonos") - (platformOf(a.entity_id) === "sonos") || nm(a).localeCompare(nm(b)));
     const card = s => {
       const a = s.attributes, vol = Math.round((a.volume_level || 0) * 100);
       return `<article class="card">
@@ -740,7 +741,7 @@
   }
   async function liveView(id) {
     const s = st(id);
-    sheet(`<h2>${esc(nm(s))}</h2><div class="cam-view" id="live-box"><div class="ph">${icon("camera")}<span>Connecting…</span></div></div>
+    sheet(`<h2>${esc(camName(s))}</h2><div class="cam-view" id="live-box"><div class="ph">${icon("camera")}<span>Connecting…</span></div></div>
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`, true);
     if (store.mode === "demo") { $("#live-box .ph span").textContent = "Live view appears here when connected to Home Assistant."; return; }
     const say = msg => { const b = $("#live-box"); if (b) b.innerHTML = `<div class="ph">${icon("camera")}<span>${esc(msg)}</span></div>`; };
@@ -790,7 +791,7 @@
   function clipView(id) {
     const s = st(id), url = s && s.attributes.video_url;
     if (!url) return;
-    sheet(`<h2>${esc(nm(s))} · last recording</h2><div class="cam-view"><video src="${esc(url)}" autoplay playsinline controls></video></div>
+    sheet(`<h2>${esc(camName(s))} · last recording</h2><div class="cam-view"><video src="${esc(url)}" autoplay playsinline controls></video></div>
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`, true);
   }
   function moreSheet() {
@@ -992,6 +993,8 @@
   // ---------- connection ----------
   async function connectLive(hassUrl) {
     store.mode = "live"; store.hassUrl = hassUrl;
+    // The sign-in round trip drops the page name (#security etc.); remember it and put it back.
+    try { if (location.hash && !location.search.includes("auth_callback")) sessionStorage.setItem("finca.hash", location.hash); } catch { /* storage unavailable */ }
     const H = window.HAWS;
     let auth;
     try {
@@ -1004,7 +1007,10 @@
       $("#main").innerHTML = `<div class="login card"><h1 style="margin:0;font-size:22px">Sign in needed</h1><p class="note">Home Assistant didn't accept the sign-in (code ${esc(e)}). Try again.</p><button class="btn btn-primary" onclick="localStorage.removeItem('finca.tokens');location.reload()">Sign in with Home Assistant</button></div>`;
       return;
     }
-    if (location.search.includes("auth_callback")) history.replaceState(null, "", location.pathname + location.hash);
+    if (location.search.includes("auth_callback")) {
+      let h = location.hash; try { h = h || sessionStorage.getItem("finca.hash") || ""; sessionStorage.removeItem("finca.hash"); } catch { /* storage unavailable */ }
+      history.replaceState(null, "", location.pathname + h);
+    }
     const conn = await H.createConnection({ auth });
     store.conn = conn; store.online = true;
     conn.addEventListener("ready", () => { store.online = true; scheduleRender(); });
