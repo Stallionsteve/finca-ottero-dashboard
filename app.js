@@ -11,7 +11,8 @@
   C.climateAuto = C.climateAuto || { automation: "automation.finca_climate_air_con_on_spare_power", powerAvailable: "binary_sensor.finca_climate_power_available",
     mode: "sensor.finca_climate_mode", flags: { living: "switch.finca_auto_air_con_living_room", master: "switch.finca_auto_air_con_master_bedroom" } };
   const AC_POWER = { living: "sensor.venus_ac_loads_on_l1", master: "sensor.venus_ac_loads_on_l2" };
-  C.alexaAC.forEach(u => { u.power = u.power || AC_POWER[u.id]; if (/air conditioner$/.test(u.alexaName)) u.alexaName = u.alexaName.replace("air conditioner", "air con"); });
+  const ROOM_TEMP = { living: "sensor.hue_motion_sensor_3_temperature" };  // master bedroom: none yet
+  C.alexaAC.forEach(u => { u.power = u.power || AC_POWER[u.id]; u.temp = u.temp || ROOM_TEMP[u.id]; if (/air conditioner$/.test(u.alexaName)) u.alexaName = u.alexaName.replace("air conditioner", "air con"); });
 
   // Logo: a geodesic dome against a retro sunset. Set here so a logo change arrives with app updates.
   const LOGO = `<svg viewBox="0 0 64 64" aria-hidden="true">
@@ -427,6 +428,7 @@
       <div class="card-head">
         <span class="ico" style="${running ? "--tint:var(--sunset)" : ""}">${icon(running ? "heater" : "snow")}</span>
         <div class="grow"><h3>${esc(u.name)}</h3><div class="row-sub">${w === null ? "Air con via Alexa" : running ? `Running · ${kw(w)} kW` : `Off or idle · ${Math.round(w)} W`}${auto && auto.state === "on" ? " · started automatically" : ""}</div></div>
+        ${u.temp && num(u.temp) !== null ? `<span class="temp" style="font-size:28px" title="Room temperature">${num(u.temp).toFixed(1)}<small>°C</small></span>` : ""}
         <span class="pill ${running ? "hot" : ""}">${running ? "Running" : "Off"}</span>
       </div>
       <div class="seg-row" style="margin-top:0">
@@ -451,10 +453,10 @@
     return `<article class="card ${on ? "is-on" : ""}" style="--tint:var(--turq)">
       <div class="card-head" style="margin-bottom:6px">
         <span class="ico">${icon("sun")}</span>
-        <div class="grow"><h3>Air con on spare power</h3><div class="row-sub">${on ? "On" : "Off"} · spare power ${avail && avail.state === "on" ? "available now" : "not available now"} · season: ${esc(mode ? mode.state : "—")}</div></div>
+        <div class="grow"><h3>Air con on spare power</h3><div class="row-sub">${on ? "On" : "Off"} · spare power ${avail && avail.state === "on" ? "available now" : "not available now"}${C.alexaAC.filter(u => u.temp && num(u.temp) !== null).map(u => ` · ${esc(u.name.toLowerCase())} ${num(u.temp).toFixed(1)} °C`).join("")}</div></div>
         ${a ? sw(a.entity_id, on, "Air con on spare power") : ""}
       </div>
-      <p class="note">${icon("info")}<span>When the battery is over 50 % or solar gives 2.5 kW, both units heat or cool to 23 °C (season and outside temperature decide which), and switch off when that power runs out. Units you start yourself are never switched off by it.</span></p>
+      <p class="note">${icon("info")}<span>With spare power (battery over 50 % or solar 2.5 kW), a room at 21 °C or below is heated to 23 °C and a room at 25 °C or above is cooled to 23 °C; the unit switches off at 23 °C or when spare power runs out. Rooms need a thermometer: living room ✓, master bedroom not yet. Units you start yourself are never switched off by it.</span></p>
     </article>`;
   }
   function viewClimate() {
