@@ -61,6 +61,7 @@ window.FincaDemo = (() => {
     mp("media_player.terrace", "Terrace", "terrace", "paused");
     mp("media_player.master_bedroom", "Master Bedroom", "master", "idle");
     ent("script.finca_ac_command", "off", { friendly_name: "Finca: air conditioning via Alexa" }, { platform: "script" });
+    ent("switch.finca_party_mode", "off", { friendly_name: "Finca party mode" }, { platform: "template" });
     ent("automation.finca_security_intruder_warning", "on", { friendly_name: "Finca security: intruder warning" }, { platform: "automation" });
     ent("script.finca_intruder_warning", "off", { friendly_name: "Finca: intruder warning in Spanish" }, { platform: "script" });
     ent("automation.finca_climate_air_con_on_spare_power", "off", { friendly_name: "Finca climate: air con on spare power" }, { platform: "automation" });
