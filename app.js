@@ -474,7 +474,9 @@
       <div class="cam-view">${pic && ok(s) ? `<img data-cam="${s.entity_id}" alt="Latest image from ${esc(nm(s))}">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No snapshot yet" : "Camera offline"}</span></div>`}
         <span class="pill tag">${ok(s) ? "Snapshot" : "Offline"}</span></div>
       <div class="cam-meta"><div><b>${esc(nm(s))}</b><div class="row-sub">${esc(areaOf(s.entity_id) || platformOf(s.entity_id) || "")}</div></div>
-        ${ok(s) ? `<button class="btn btn-sm" data-live="${s.entity_id}">Live view</button>` : ""}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          ${s.attributes.video_url ? `<button class="btn btn-sm btn-ghost" data-clip="${s.entity_id}">Last recording</button>` : ""}
+          ${ok(s) ? `<button class="btn btn-sm" data-live="${s.entity_id}">Live view</button>` : ""}</div></div>
     </article>`;
   }
   function viewSecurity() {
@@ -497,7 +499,7 @@
       </div>
       <h2 class="section">Cameras</h2>
       ${cams.length ? `<div class="grid g-2">${cams.map(camCard).join("")}</div>` : '<p class="empty">No cameras found yet.</p>'}
-      <p class="note">${icon("info")}<span>Ring sends snapshots and live view free. Recorded video history needs Ring Protect. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p>
+      <p class="note">${icon("info")}<span>Snapshots show each camera's latest event; Live view streams now; Last recording plays the newest Ring Protect clip. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p>
     </section>`;
   }
 
@@ -686,7 +688,7 @@
     $("#main").innerHTML = html;
     document.querySelectorAll("#main img[data-cam]").forEach(img => {
       const old = keep[img.dataset.cam];
-      if (old && old.complete && old.naturalWidth) { img.replaceWith(old); return; }
+      if (old && (old.naturalWidth || !old.complete)) { img.replaceWith(old); return; }  // loaded or still loading: keep it
       const cam = st(img.dataset.cam); if (cam && cam.attributes.entity_picture) img.src = store.hassUrl + cam.attributes.entity_picture;
     });
     $("#conn").textContent = (store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…") + (window.FINCA_VERSION ? ` · ${window.FINCA_VERSION.split(" ")[0]}` : "");
@@ -783,6 +785,13 @@
         else if (msg.type === "error") { clearTimeout(timer); reject(new Error(msg.message || msg.code)); }
       }, { type: "camera/webrtc/offer", entity_id: id, offer: offer.sdp }).then(u => { me.unsub = u; }, e => { clearTimeout(timer); reject(e); });
     });
+  }
+  // Ring Protect: the latest recorded clip, played straight from Ring's storage.
+  function clipView(id) {
+    const s = st(id), url = s && s.attributes.video_url;
+    if (!url) return;
+    sheet(`<h2>${esc(nm(s))} · last recording</h2><div class="cam-view"><video src="${esc(url)}" autoplay playsinline controls></video></div>
+      <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`, true);
   }
   function moreSheet() {
     sheet(`<h2>More</h2><div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-nav">${icon(n.icon)}${n.label}</a>`).join("")}</div>
@@ -909,7 +918,7 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-colour],[data-ask],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],#jmic");
     if (!t) return;
     const d = t.dataset;
     if (t.id === "jmic") { listen(); return; }
@@ -948,6 +957,7 @@
     }
     if (d.media) { svc("media_player", d.cmd, {}, { entity_id: d.media }); return; }
     if (d.live) { liveView(d.live); return; }
+    if (d.clip) { clipView(d.clip); return; }
     if (d.colour) { colourSheet(d.colour); return; }
     const a = d.action;
     if (a === "gate") { ev.preventDefault(); gateSheet(); }
