@@ -689,7 +689,8 @@
       if (old && old.complete && old.naturalWidth) { img.replaceWith(old); return; }
       const cam = st(img.dataset.cam); if (cam && cam.attributes.entity_picture) img.src = store.hassUrl + cam.attributes.entity_picture;
     });
-    $("#conn").textContent = store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…";
+    $("#conn").textContent = (store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…") + (window.FINCA_VERSION ? ` · ${window.FINCA_VERSION.split(" ")[0]}` : "");
+    $("#conn").title = window.FINCA_VERSION ? `App version ${window.FINCA_VERSION}` : "";
     $("#conn").className = "conn" + (store.mode === "demo" ? " demo" : "");
     if (scroll) window.scrollTo(0, 0);
   }
