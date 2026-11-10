@@ -471,7 +471,7 @@
   function camCard(s) {
     const pic = s.attributes.entity_picture;
     return `<article class="card">
-      <div class="cam-view">${pic && ok(s) ? `<img data-cam="${s.entity_id}" src="${esc(store.hassUrl + pic)}" alt="Latest image from ${esc(nm(s))}" loading="lazy">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No snapshot yet" : "Camera offline"}</span></div>`}
+      <div class="cam-view">${pic && ok(s) ? `<img data-cam="${s.entity_id}" alt="Latest image from ${esc(nm(s))}">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No snapshot yet" : "Camera offline"}</span></div>`}
         <span class="pill tag">${ok(s) ? "Snapshot" : "Offline"}</span></div>
       <div class="cam-meta"><div><b>${esc(nm(s))}</b><div class="row-sub">${esc(areaOf(s.entity_id) || platformOf(s.entity_id) || "")}</div></div>
         ${ok(s) ? `<button class="btn btn-sm" data-live="${s.entity_id}">Live view</button>` : ""}</div>
@@ -669,6 +669,7 @@
   const VIEWS = { home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia };
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
+  let lastHtml = "", lastView = "";
   function render(scroll) {
     const a = document.activeElement;
     if (!scroll && a && a.type === "range") { pending = true; return; }
@@ -676,10 +677,18 @@
     const v = current();
     renderNav(location.hash === "#jarvis" ? "jarvis" : v);
     // Keep already-loaded camera pictures: rebuilding them on every redraw made them blink.
+    const html = VIEWS[v]();
+    // Nothing on this page changed (e.g. only a solar reading moved while on Security): leave it alone.
+    if (!scroll && html === lastHtml && v === lastView) return;
+    lastHtml = html; lastView = v;
     const keep = {};
     document.querySelectorAll("#main img[data-cam]").forEach(img => { keep[img.dataset.cam] = img; });
-    $("#main").innerHTML = VIEWS[v]();
-    document.querySelectorAll("#main img[data-cam]").forEach(img => { const old = keep[img.dataset.cam]; if (old && old.complete && old.naturalWidth) img.replaceWith(old); });
+    $("#main").innerHTML = html;
+    document.querySelectorAll("#main img[data-cam]").forEach(img => {
+      const old = keep[img.dataset.cam];
+      if (old && old.complete && old.naturalWidth) { img.replaceWith(old); return; }
+      const cam = st(img.dataset.cam); if (cam && cam.attributes.entity_picture) img.src = store.hassUrl + cam.attributes.entity_picture;
+    });
     $("#conn").textContent = store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…";
     $("#conn").className = "conn" + (store.mode === "demo" ? " demo" : "");
     if (scroll) window.scrollTo(0, 0);
