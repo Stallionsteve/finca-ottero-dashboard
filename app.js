@@ -6,6 +6,7 @@
   "use strict";
   const C = window.FINCA_CONFIG;
   const Demo = window.FincaDemo;
+  window.FincaAppLoaded = true;
 
   // ---------- icons (one line style: 24px grid, 1.75 stroke, round caps) ----------
   const P = {
@@ -225,6 +226,8 @@
   const isGroup = s => s.attributes.is_hue_group === true || Array.isArray(s.attributes.entity_id);
   const realLights = () => all("light").filter(s => !isGroup(s));
   const dimmable = s => (s.attributes.supported_color_modes || []).some(m => m !== "onoff");
+  const hasColour = s => (s.attributes.supported_color_modes || []).some(m => ["hs", "xy", "rgb", "rgbw", "rgbww"].includes(m));
+  const hasWhiteTemp = s => (s.attributes.supported_color_modes || []).includes("color_temp");
   function lightAreas() {
     const buckets = new Map();
     const add = (name, s) => { if (!buckets.has(name)) buckets.set(name, { name, group: null, lights: [] }); return buckets.get(name); };
@@ -246,6 +249,7 @@
       <div class="card-head">
         <span class="ico" style="--tint:var(--sunset)">${icon("bulb")}</span>
         <div class="grow"><h3>${esc(b.name)}</h3><div class="row-sub">${members.length} light${members.length === 1 ? "" : "s"} · ${onCount} on</div></div>
+        ${[b.group, ...members].some(x => x && (hasColour(x) || hasWhiteTemp(x))) ? `<button class="round-btn colour-btn" data-colour="${esc(b.name)}" aria-label="${esc(b.name)} colour"><span class="swatch" style="background:${swatchOf(b.group || members.find(x => x.state === "on") || members[0])}"></span></button>` : ""}
         <button class="switch" role="switch" aria-checked="${anyOn}" aria-label="${esc(b.name)} lights" data-area="${esc(ids)}" style="--tint:var(--sunset)"></button>
       </div>
       ${master && dimmable(master) ? `<div class="bri">
@@ -254,6 +258,48 @@
       ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" ${ok(s) ? "" : "disabled"} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
     </article>`;
   }
+  function swatchOf(s) {
+    if (!s || s.state !== "on") return "conic-gradient(#ff5c5c, #ffd25c, #5cff8a, #5ce1ff, #8a5cff, #ff5cc8, #ff5c5c)";
+    const c = s.attributes.rgb_color;
+    return c ? `rgb(${c.join(",")})` : "#ffd9a0";
+  }
+  function colourSheet(areaName) {
+    const b = lightAreas().find(x => x.name === areaName); if (!b) return;
+    const lights = b.lights.filter(x => ok(x) && (hasColour(x) || hasWhiteTemp(x)));
+    const all = (b.group ? [b.group] : lights);
+    const anyColour = [...all, ...lights].some(hasColour), anyTemp = [...all, ...lights].some(hasWhiteTemp);
+    const ref = b.group || lights[0];
+    const kMin = Math.max(2000, ...[...all, ...lights].map(x => x.attributes.min_color_temp_kelvin || 2000));
+    const kMax = Math.min(6500, ...[...all, ...lights].map(x => x.attributes.max_color_temp_kelvin || 6500));
+    const kNow = (ref && ref.attributes.color_temp_kelvin) || Math.round((kMin + kMax) / 2);
+    sheet(`<h2>${esc(areaName)} colour</h2>
+      <label class="row-sub" for="ctarget">Apply to</label>
+      <select class="sel" id="ctarget"><option value="${esc(all.map(x => x.entity_id).join(","))}">Whole room</option>
+        ${lights.map(x => `<option value="${x.entity_id}">${esc(nm(x))}</option>`).join("")}</select>
+      ${anyColour ? '<div class="wheel" id="wheel" role="slider" aria-label="Colour wheel" tabindex="0"><span class="wheel-dot" id="wheel-dot"></span></div>' : ""}
+      ${anyTemp ? `<label class="row-sub" for="ctemp">White: warm to cool</label><input type="range" id="ctemp" class="temp-range" min="${kMin}" max="${kMax}" step="50" value="${kNow}">` : ""}
+      <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Done</button></div>`);
+    const wheel = $("#wheel");
+    if (wheel) {
+      const hs = ref && ref.attributes.hs_color;
+      const place = (h, sat) => { const r = wheel.clientWidth / 2, a = h * Math.PI / 180; const d = $("#wheel-dot"); d.style.left = `${r + Math.sin(a) * sat * r}px`; d.style.top = `${r - Math.cos(a) * sat * r}px`; d.style.background = `hsl(${h} ${sat * 100}% ${100 - sat * 50}%)`; };
+      if (hs) place(hs[0], hs[1] / 100); else place(0, 0);
+      const pick = (ev, send) => {
+        const box = wheel.getBoundingClientRect(), r = box.width / 2;
+        const dx = ev.clientX - box.left - r, dy = ev.clientY - box.top - r;
+        const h = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360, sat = Math.min(1, Math.hypot(dx, dy) / r);
+        place(h, sat);
+        if (send) svc("light", "turn_on", { hs_color: [Math.round(h), Math.round(sat * 100)] }, { entity_id: $("#ctarget").value.split(",") });
+      };
+      let down = false;
+      wheel.addEventListener("pointerdown", ev => { down = true; wheel.setPointerCapture(ev.pointerId); pick(ev, false); });
+      wheel.addEventListener("pointermove", ev => { if (down) pick(ev, false); });
+      wheel.addEventListener("pointerup", ev => { if (down) { down = false; pick(ev, true); } });
+    }
+    const t = $("#ctemp");
+    if (t) t.addEventListener("change", () => svc("light", "turn_on", { color_temp_kelvin: +t.value }, { entity_id: $("#ctarget").value.split(",") }));
+  }
+
   function viewLighting() {
     const areas = lightAreas();
     const extra = Object.values(store.states).filter(s => domainOf(s.entity_id) === "switch" && !isHidden(s) && C.lightingSwitches.some(r => r.test(nm(s))));
@@ -548,7 +594,7 @@
   function sheet(html, wide = false) {
     $("#layer").innerHTML = `<div class="scrim" data-action="close"><div class="sheet ${wide ? "wide" : ""}" role="dialog" aria-modal="true">${html}</div></div>`;
   }
-  const closeLayer = () => { const v = $("#layer video"); if (v) v.pause(); $("#layer").innerHTML = ""; };
+  const closeLayer = () => { const v = $("#layer video"); if (v) v.pause(); stopLive(); $("#layer").innerHTML = ""; };
   function gateSheet() {
     sheet(`<span class="ico big-ico">${icon("gate")}</span><h2>Open the main gate?</h2>
       <p>This sends one open pulse to the gate, the same as your “Open Front Gate” Alexa routine.</p>
@@ -570,17 +616,61 @@
       <div class="acts"><button class="btn" data-action="close" id="sheet-cancel">Cancel</button><button class="btn btn-primary" data-action="all-off-go">Turn off</button></div>`);
     $("#sheet-cancel").focus();
   }
+  // Live view: WebRTC first (Ring and go2rtc cameras), HLS as a fallback for older cameras.
+  let live = null;
+  function stopLive() {
+    if (!live) return;
+    try { live.unsub && live.unsub(); } catch { /* already closed */ }
+    try { live.pc && live.pc.close(); } catch { /* already closed */ }
+    live = null;
+  }
   async function liveView(id) {
     const s = st(id);
     sheet(`<h2>${esc(nm(s))}</h2><div class="cam-view" id="live-box"><div class="ph">${icon("camera")}<span>Connecting…</span></div></div>
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`, true);
     if (store.mode === "demo") { $("#live-box .ph span").textContent = "Live view appears here when connected to Home Assistant."; return; }
+    const say = msg => { const b = $("#live-box"); if (b) b.innerHTML = `<div class="ph">${icon("camera")}<span>${esc(msg)}</span></div>`; };
+    let types = [];
+    try { types = (await store.conn.sendMessagePromise({ type: "camera/capabilities", entity_id: id })).frontend_stream_types || []; } catch { /* older Home Assistant */ }
+    if (types.includes("web_rtc") && window.RTCPeerConnection) {
+      try { await webrtc(id); return; } catch (e) { if (!types.includes("hls")) { say(`Live view didn't start (${e.message || e.code || e}).`); return; } }
+    }
     try {
       const r = await store.conn.sendMessagePromise({ type: "camera/stream", entity_id: id });
       $("#live-box").innerHTML = `<video src="${esc(store.hassUrl + r.url)}" autoplay playsinline muted controls></video>`;
-    } catch (e) {
-      $("#live-box").innerHTML = `<div class="ph">${icon("camera")}<span>This camera's live view only opens in the Home Assistant app (${esc(e.message || e.code)}).</span></div>`;
-    }
+    } catch (e) { say(`Live view didn't start (${e.message || e.code || e}).`); }
+  }
+  async function webrtc(id) {
+    stopLive();
+    let cfg = {};
+    try { cfg = await store.conn.sendMessagePromise({ type: "camera/webrtc/get_client_config", entity_id: id }); } catch { /* defaults */ }
+    const pc = new RTCPeerConnection(cfg.configuration || {});
+    const me = live = { pc, session: null, pending: [], unsub: null };
+    if (cfg.dataChannel) pc.createDataChannel(cfg.dataChannel);
+    pc.addTransceiver("video", { direction: "recvonly" });
+    pc.addTransceiver("audio", { direction: "recvonly" });
+    const stream = new MediaStream();
+    pc.ontrack = ev => {
+      stream.addTrack(ev.track);
+      const box = $("#live-box"); if (!box || live !== me) return;
+      let v = box.querySelector("video");
+      if (!v) { box.innerHTML = '<video autoplay playsinline muted controls></video><span class="pill tag" style="color:var(--coral)">Live</span>'; v = box.querySelector("video"); }
+      v.srcObject = stream; v.play().catch(() => {});
+    };
+    const sendCandidate = c => store.conn.sendMessagePromise({ type: "camera/webrtc/candidate", entity_id: id, session_id: me.session, candidate: { candidate: c.candidate, sdpMid: c.sdpMid, sdpMLineIndex: c.sdpMLineIndex } }).catch(() => {});
+    pc.onicecandidate = ev => { if (!ev.candidate) return; if (me.session) sendCandidate(ev.candidate); else me.pending.push(ev.candidate); };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no answer from the camera")), 20000);
+      store.conn.subscribeMessage(async msg => {
+        if (live !== me) return;
+        if (msg.type === "session") { me.session = msg.session_id; me.pending.splice(0).forEach(sendCandidate); }
+        else if (msg.type === "answer") { await pc.setRemoteDescription({ type: "answer", sdp: msg.answer }); clearTimeout(timer); resolve(); }
+        else if (msg.type === "candidate") { try { await pc.addIceCandidate(msg.candidate); } catch { /* late candidate */ } }
+        else if (msg.type === "error") { clearTimeout(timer); reject(new Error(msg.message || msg.code)); }
+      }, { type: "camera/webrtc/offer", entity_id: id, offer: offer.sdp }).then(u => { me.unsub = u; }, e => { clearTimeout(timer); reject(e); });
+    });
   }
   function moreSheet() {
     sheet(`<h2>More</h2><div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-nav">${icon(n.icon)}${n.label}</a>`).join("")}</div>
@@ -707,7 +797,7 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acstep],[data-media],[data-live],[data-ask],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acstep],[data-media],[data-live],[data-colour],[data-ask],#jmic");
     if (!t) return;
     const d = t.dataset;
     if (t.id === "jmic") { listen(); return; }
@@ -734,6 +824,7 @@
     }
     if (d.media) { svc("media_player", d.cmd, {}, { entity_id: d.media }); return; }
     if (d.live) { liveView(d.live); return; }
+    if (d.colour) { colourSheet(d.colour); return; }
     const a = d.action;
     if (a === "gate") { ev.preventDefault(); gateSheet(); }
     else if (a === "gate-go") { closeLayer(); openGate(); }

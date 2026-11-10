@@ -11,7 +11,7 @@ window.FincaDemo = (() => {
     store.ents[id] = { entity_id: id, area_id: extra.area || null, platform: extra.platform || "demo", device_id: null };
   }
   const light = (id, name, area, on, bri, group) => ent(id, on ? "on" : "off",
-    { friendly_name: name, brightness: on ? Math.round(bri * 2.55) : null, supported_color_modes: ["brightness"], ...(group ? { is_hue_group: true } : {}) },
+    { friendly_name: name, brightness: on ? Math.round(bri * 2.55) : null, supported_color_modes: ["color_temp", "xy"], min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, ...(group ? { is_hue_group: true } : {}) },
     { area, platform: "hue" });
 
   function load(s, onChange) {
@@ -75,7 +75,8 @@ window.FincaDemo = (() => {
     if (domain === "light") {
       list.forEach(id => {
         const on = service === "turn_on" || (service === "toggle" && store.states[id].state !== "on");
-        set(id, on ? "on" : "off", { brightness: on ? Math.round((data.brightness_pct || (store.states[id].attributes.brightness || 128) / 2.55) * 2.55) : null });
+        const extra = data.hs_color ? { hs_color: data.hs_color, rgb_color: hsToRgb(data.hs_color) } : data.color_temp_kelvin ? { color_temp_kelvin: data.color_temp_kelvin, rgb_color: null, hs_color: null } : {};
+        set(id, on ? "on" : "off", { brightness: on ? Math.round((data.brightness_pct || (store.states[id].attributes.brightness || 128) / 2.55) * 2.55) : null, ...extra });
         // A Hue room switches its members; members update their room.
         if (store.states[id].attributes.is_hue_group) {
           const area = store.ents[id].area_id;
@@ -98,6 +99,10 @@ window.FincaDemo = (() => {
     }
     changed();
     return Promise.resolve();
+  }
+  function hsToRgb([h, sat]) {
+    const s = sat / 100, f = n => { const k = (n + h / 60) % 6; return Math.round(255 * (1 - s * Math.max(0, Math.min(k, 4 - k, 1)))); };
+    return [f(5), f(3), f(1)];
   }
   function syncGroups() {
     Object.values(store.states).filter(s => s.attributes.is_hue_group).forEach(g => {
