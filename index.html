@@ -18,11 +18,11 @@
 <!-- The app updates itself from the public project (Stallionsteve/finca-ottero-dashboard) through jsDelivr;
      the local copies next to this file are used whenever that can't be reached. config.js is always local. -->
 <script>
-  window.FINCA_CDN = "https://cdn.jsdelivr.net/gh/Stallionsteve/finca-ottero-dashboard@main/";
+  window.FINCA_REPO = "Stallionsteve/finca-ottero-dashboard";
   window.FINCA_HOUR = Math.floor(Date.now() / 3.6e6);
 </script>
 <link rel="stylesheet" href="styles.css" id="css-local">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Stallionsteve/finca-ottero-dashboard@main/styles.css" id="css-cdn" onerror="this.remove()">
+
 </head>
 <body>
 <header class="topbar">
@@ -65,18 +65,38 @@
 <div id="layer"></div>
 <div id="toast-host" aria-live="polite"></div>
 <script src="vendor/haws.umd.js?v=9.4.0"></script>
-<script src="config.js?v=7"></script>
+<script src="config.js?v=8"></script>
 <script>
-  // Load demo.js then app.js from the project, falling back to the local copies.
+  // Load the latest app from the public project: ask GitHub for the exact latest version (remembered for
+  // 10 minutes), fetch that version from jsDelivr (available immediately), and fall back to the copy stored
+  // in Home Assistant when offline.
   (function () {
-    function load(name, done) {
-      var el = document.createElement("script");
-      el.src = window.FINCA_CDN + name + "?h=" + window.FINCA_HOUR;
-      el.onload = done;
-      el.onerror = function () { var l = document.createElement("script"); l.src = name + "?v=7"; l.onload = done; document.body.appendChild(l); };
+    var key = "finca.sha", local = "?v=8";
+    function base(sha) { return "https://cdn.jsdelivr.net/gh/" + window.FINCA_REPO + "@" + (sha || "main") + "/"; }
+    function css(url) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = url; l.onerror = function () { l.remove(); }; document.head.appendChild(l); }
+    function load(url, fallback, done) {
+      var el = document.createElement("script"); el.src = url; el.onload = done;
+      el.onerror = function () { var f = document.createElement("script"); f.src = fallback; f.onload = done; document.body.appendChild(f); };
       document.body.appendChild(el);
     }
-    load("demo.js", function () { load("app.js", function () {}); });
+    function start(sha) {
+      var b = base(sha), q = sha ? "" : "?h=" + window.FINCA_HOUR;
+      css(b + "styles.css" + q);
+      load(b + "demo.js" + q, "demo.js" + local, function () { load(b + "app.js" + q, "app.js" + local, function () {}); });
+    }
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { /* storage unavailable */ }
+    if (saved && Date.now() - saved.at < 600000) return start(saved.sha);
+    var done = false, timer = setTimeout(function () { if (!done) { done = true; start(saved && saved.sha); } }, 2500);
+    fetch("https://api.github.com/repos/" + window.FINCA_REPO + "/commits/main", { headers: { Accept: "application/vnd.github.sha" } })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (sha) {
+        if (done) return; done = true; clearTimeout(timer);
+        if (sha && /^[0-9a-f]{40}$/.test(sha.trim())) { sha = sha.trim(); try { localStorage.setItem(key, JSON.stringify({ sha: sha, at: Date.now() })); } catch (e) { /* ignore */ } }
+        else sha = saved && saved.sha;
+        start(sha);
+      })
+      .catch(function () { if (!done) { done = true; clearTimeout(timer); start(saved && saved.sha); } });
   })();
 </script>
 </body>
