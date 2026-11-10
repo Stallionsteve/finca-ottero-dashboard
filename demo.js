@@ -18,6 +18,9 @@ window.FincaDemo = (() => {
     store = s; changed = onChange;
     const areas = { terrace: "Terrace", bar: "Bar", lounge: "Downstairs Lounge", living: "Living Room", front: "Front Door", hall: "Hallway", pool: "Pool House", master: "Master Bedroom" };
     Object.entries(areas).forEach(([area_id, name]) => { store.areas[area_id] = { area_id, name }; });
+    const t0 = Date.now() / 1000;
+    store.devices.demo_sensor = { id: "demo_sensor", name: "Hue motion sensor 3", name_by_user: "Living room temperature", manufacturer: "Signify Netherlands B.V.", model: "Hue motion sensor", area_id: "living", created_at: t0 - 86400 };
+    store.devices.demo_bulb = { id: "demo_bulb", name: "Hue color lamp 7", manufacturer: "Signify Netherlands B.V.", model: "Hue color lamp", area_id: null, created_at: t0 - 3600 };
 
     light("light.terrace_group", "Terrace", "terrace", true, 70, true);
     ["Terrace", "Terrace 2", "Terrace 3", "Terrace 4", "Terrace 5", "Terrace 6"].forEach((n, i) => light(`light.terrace_${i + 1}`, n, "terrace", true, 70));
@@ -154,5 +157,6 @@ window.FincaDemo = (() => {
     return "In the demo I can answer questions about the battery, solar and grid, or switch the terrace and bar lights.";
   }
 
-  return { load, call, history, jarvis };
+  function flows() { return [{ flow_id: "demo1", handler: "cast", context: { source: "zeroconf", title_placeholders: { name: "Kitchen speaker" } } }]; }
+  return { load, call, history, jarvis, flows };
 })();

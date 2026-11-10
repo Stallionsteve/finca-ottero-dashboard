@@ -113,6 +113,7 @@
     mic: '<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5"/>',
     send: '<path d="M4 12 20 4l-4 16-4-7z"/><path d="m12 13 8-9"/>',
     more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
+    plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     party: '<path d="M4 20 9.5 6.5 17.5 14.5z"/><path d="M8 15.5l2.5 2.5M11 10.5l4.5 4.5"/><path d="M14 4.5c.8 1 .8 2-.2 2.8M18.5 9c1-.8 2-.8 2.8.2M17 3.5h.01M20.5 6.5h.01M20 12.5h.01"/>',
     fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C11 6 12.5 3 15 3.5s2.2 4-3 6.7M13.8 12c4.2-1 7.2.5 6.7 3s-4 2.2-6.7-3M12 13.8c1 4.2-.5 7.2-3 6.7s-2.2-4 3-6.7M10.2 12C6 13 3 11.5 3.5 9s4-2.2 6.7 3"/>'
   };
@@ -218,6 +219,7 @@
     { id: "energy", label: "Energy", icon: "sun", rail: true },
     { id: "pool", label: "Pool", icon: "poollight", rail: true },
     { id: "media", label: "Music", icon: "music", rail: true },
+    { id: "devices", label: "Devices", icon: "plus", rail: true },
     { id: "jarvis", label: "Jarvis", icon: "mic", rail: true }
   ];
   function renderNav(cur) {
@@ -693,8 +695,66 @@
     </section>`;
   }
 
+  // ---------- devices: scan for new ones, name them and put them in a room ----------
+  const dev = { flows: null, loadedAt: 0, busy: false, msg: "" };
+  async function scanDevices(force) {
+    if (dev.busy || (!force && Date.now() - dev.loadedAt < 60000)) return;
+    dev.busy = true; render(false);
+    try {
+      if (store.mode === "demo") { dev.flows = Demo.flows ? Demo.flows() : []; }
+      else {
+        const [flows, devices, areas] = await Promise.all([
+          store.conn.sendMessagePromise({ type: "config_entries/flow/progress" }).catch(() => []),
+          store.conn.sendMessagePromise({ type: "config/device_registry/list" }).catch(() => null),
+          store.conn.sendMessagePromise({ type: "config/area_registry/list" }).catch(() => null)]);
+        dev.flows = (flows || []).filter(f => (f.context || {}).source && !["user", "reauth", "reconfigure"].includes(f.context.source));
+        if (devices) { store.devices = {}; devices.forEach(d => { store.devices[d.id] = d; }); }
+        if (areas) { store.areas = {}; areas.forEach(a => { store.areas[a.area_id] = a; }); }
+      }
+      dev.msg = `Scanned at ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+    } catch (e) { dev.msg = `Scan failed: ${e.message || e.code || e}`; }
+    dev.loadedAt = Date.now(); dev.busy = false; lastHtml = ""; render(false);
+  }
+  const brandOf = d => [d.manufacturer, d.model].filter(Boolean).join(" ");
+  function viewDevices() {
+    scanDevices(false);
+    const cutoff = Date.now() / 1000 - 14 * 86400;
+    const recent = Object.values(store.devices).filter(d => (d.created_at || 0) > cutoff && !d.disabled_by && d.entry_type !== "service")
+      .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 30);
+    const areas = Object.values(store.areas).sort((a, b) => a.name.localeCompare(b.name));
+    const flows = dev.flows || [];
+    const addUrl = (store.hassUrl || "") + "/config/integrations/dashboard";
+    return `<section class="view">
+      <div class="page-head"><div><h1>Devices</h1><p>${esc(dev.busy ? "Scanning…" : dev.msg || "Find and set up new devices")}</p></div>
+        <button class="btn btn-primary" data-action="scan" ${dev.busy ? "disabled" : ""}>${icon("sensor")}Scan for devices</button></div>
+      <h2 class="section">Waiting to be added</h2>
+      ${dev.flows === null ? '<p class="empty">Scanning…</p>' : flows.length ? `<div class="grid g-2">${flows.map(f => `<article class="card"><div class="card-head">
+          <span class="ico">${icon("plus")}</span>
+          <div class="grow"><h3>${esc((f.context.title_placeholders || {}).name || f.handler)}</h3><div class="row-sub">Found by ${esc(f.handler.replace(/_/g, " "))} · ${esc(f.context.source)}</div></div>
+          <a class="btn btn-sm btn-primary" href="${esc(addUrl)}" target="_blank" rel="noopener">Add</a></div></article>`).join("")}</div>
+          <p class="note">${icon("info")}<span>“Add” opens Home Assistant, where the new device is waiting under Discovered. Confirm it there; it then appears here under Recently added.</span></p>`
+        : '<p class="empty">Nothing waiting. New devices from the Hue and eWeLink apps are added automatically.</p>'}
+      <h2 class="section">Recently added · last 14 days</h2>
+      ${recent.length ? `<div class="grid g-2">${recent.map(d => `<article class="card">
+          <div class="card-head"><span class="ico">${icon(/hue|signify|philips/i.test(d.manufacturer || "") ? "bulb" : /sonos/i.test(d.manufacturer || "") ? "music" : "sensor")}</span>
+            <div class="grow"><h3>${esc(d.name_by_user || d.name || "New device")}</h3><div class="row-sub">${esc(brandOf(d))} · added ${ago(new Date(d.created_at * 1000).toISOString())}</div></div></div>
+          <div class="seg-row" style="margin-top:0;align-items:center">
+            <label class="row-sub" for="room-${d.id}">Room</label>
+            <select class="sel" id="room-${d.id}" data-room-for="${d.id}"><option value="">No room</option>${areas.map(a => `<option value="${esc(a.area_id)}" ${a.area_id === d.area_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>
+          </div>
+          <form class="jarvis-input" style="margin-top:10px" data-rename="${d.id}"><input type="text" id="name-${d.id}" value="${esc(d.name_by_user || d.name || "")}" aria-label="Name for ${esc(d.name || "device")}"><button class="btn btn-sm" type="submit">Rename</button></form>
+        </article>`).join("")}</div>` : '<p class="empty">No devices added in the last 14 days.</p>'}
+      <h2 class="section">Adding something new</h2>
+      <div class="card">
+        <div class="row"><span class="ico" style="--tint:var(--sunset)">${icon("bulb")}</span><div class="row-body"><div class="row-title">Hue lights and sensors</div><div class="row-sub">Pair in the Philips Hue app (Settings → Lights or Accessories → Add). They appear here within a minute; then choose the room.</div></div></div>
+        <div class="row"><span class="ico">${icon("power")}</span><div class="row-body"><div class="row-title">Sonoff switches</div><div class="row-sub">Add in the eWeLink app. They come through to Home Assistant automatically.</div></div></div>
+        <div class="row"><span class="ico">${icon("plus")}</span><div class="row-body"><div class="row-title">Anything else</div><div class="row-sub">Tap Scan. Most devices on the Wi-Fi are discovered by themselves; otherwise <a href="${esc(addUrl)}" target="_blank" rel="noopener" style="color:var(--turq)">open Home Assistant's integrations</a>.</div></div></div>
+      </div>
+    </section>`;
+  }
+
   // ---------- render ----------
-  const VIEWS = { home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia };
+  const VIEWS = { home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices };
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
   let lastHtml = "", lastView = "";
@@ -995,11 +1055,23 @@
       $("#sheet-cancel").focus();
     }
     else if (a === "intruder-test-go") { closeLayer(); svc("script", "turn_on", { variables: { repeats: 1, volume: 0.25 } }, { entity_id: "script.finca_intruder_warning" }).then(() => toast(store.mode === "demo" ? "Demo only. Nothing was played." : "Test playing on the Sonos speakers.")).catch(() => {}); }
+    else if (a === "scan") scanDevices(true);
     else if (a === "all-off") allOffSheet();
     else if (a === "all-off-go") { closeLayer(); svc("light", "turn_off", {}, { entity_id: realLights().filter(s => s.state === "on").map(s => s.entity_id) }); }
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
     else if (a === "close-nav") closeLayer();
     else if (a === "close") { if (ev.target === t || t.tagName === "BUTTON") { closeLayer(); if (location.hash === "#jarvis") history.replaceState(null, "", "#home"); renderNav(current()); } }
+  });
+  async function updateDevice(id, changes, done) {
+    try {
+      if (store.mode === "demo") Object.assign(store.devices[id], changes);
+      else { const d = await store.conn.sendMessagePromise({ type: "config/device_registry/update", device_id: id, ...changes }); store.devices[id] = d; }
+      toast(done); lastHtml = ""; render(false);
+    } catch (e) { toast(`Home Assistant refused that: ${e.message || e.code}`); }
+  }
+  document.addEventListener("submit", ev => {
+    const f = ev.target.closest("[data-rename]");
+    if (f) { ev.preventDefault(); const v = f.querySelector("input").value.trim(); if (v) updateDevice(f.dataset.rename, { name_by_user: v }, `Renamed to ${v}`); return; }
   });
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
@@ -1007,6 +1079,7 @@
     if (t.dataset.bri) svc("light", "turn_on", { brightness_pct: +t.value }, { entity_id: t.dataset.bri.split(",") });
     if (t.dataset.vol) svc("media_player", "volume_set", { volume_level: +t.value / 100 }, { entity_id: t.dataset.vol });
     if (t.id === "jreply") mem.set("jarvis.reply", t.value);
+    if (t.dataset.roomFor) updateDevice(t.dataset.roomFor, { area_id: t.value || null }, t.value ? `Moved to ${(store.areas[t.value] || {}).name || "room"}` : "Removed from its room");
     if (pending) setTimeout(() => render(false), 50);
   });
   document.addEventListener("input", ev => {
