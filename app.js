@@ -480,6 +480,20 @@
           ${ok(s) ? `<button class="btn btn-sm" data-live="${s.entity_id}">Live view</button>` : ""}</div></div>
     </article>`;
   }
+  function intruderCard() {
+    const a = st("automation.finca_security_intruder_warning"), sc = st("script.finca_intruder_warning");
+    if (!a && store.mode !== "demo") return "";
+    const on = a ? a.state === "on" : true, alarms = all("alarm_control_panel");
+    return `<article class="card ${on ? "is-on" : ""}" style="--tint:var(--coral)">
+      <div class="card-head">
+        <span class="ico" style="--tint:var(--coral)">${icon("siren")}</span>
+        <div class="grow"><h3>Intruder warning</h3><div class="row-sub">${on ? "On" : "Off"} · ${alarms.length ? `watching ${alarms.length} alarm${alarms.length > 1 ? "s" : ""}` : "waiting for the Ring Alarm to be connected"}${sc && sc.state === "on" ? " · playing now" : ""}</div></div>
+        ${a ? sw(a.entity_id, on, "Intruder warning") : ""}
+      </div>
+      <p class="note" style="margin-bottom:12px">${icon("music")}<span>If the alarm goes off, every Sonos speaker says six times: <b>“¡Atención! Intruso detectado. La policía ha sido avisada.”</b> Then each speaker goes back to what it was playing.</span></p>
+      <button class="btn btn-sm" data-action="intruder-test">Test quietly</button>
+    </article>`;
+  }
   function viewSecurity() {
     const alarms = all("alarm_control_panel"), cams = all("camera");
     const activity = Object.values(store.states)
@@ -498,6 +512,7 @@
         ${activity.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>Recent activity</h3></div></div>
           ${activity.map(s => `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ago(s.last_changed)}</div></div></div>`).join("")}</article>` : ""}
       </div>
+      ${intruderCard()}
       <h2 class="section">Cameras</h2>
       ${cams.length ? `<div class="grid g-2">${cams.map(camCard).join("")}</div>` : '<p class="empty">No cameras found yet.</p>'}
       <p class="note">${icon("info")}<span>Snapshots show each camera's latest event; Live view streams now; Last recording plays the newest Ring Protect clip. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p>
@@ -963,6 +978,13 @@
     const a = d.action;
     if (a === "gate") { ev.preventDefault(); gateSheet(); }
     else if (a === "gate-go") { closeLayer(); openGate(); }
+    else if (a === "intruder-test") {
+      sheet(`<span class="ico big-ico" style="--tint:var(--coral)">${icon("siren")}</span><h2>Test the intruder warning?</h2>
+        <p>Plays the Spanish warning once on every Sonos speaker at low volume (25 %), then puts the speakers back as they were.</p>
+        <div class="acts"><button class="btn" data-action="close" id="sheet-cancel">Cancel</button><button class="btn btn-primary" data-action="intruder-test-go">Play test</button></div>`);
+      $("#sheet-cancel").focus();
+    }
+    else if (a === "intruder-test-go") { closeLayer(); svc("script", "turn_on", { variables: { repeats: 1, volume: 0.25 } }, { entity_id: "script.finca_intruder_warning" }).then(() => toast(store.mode === "demo" ? "Demo only. Nothing was played." : "Test playing on the Sonos speakers.")).catch(() => {}); }
     else if (a === "all-off") allOffSheet();
     else if (a === "all-off-go") { closeLayer(); svc("light", "turn_off", {}, { entity_id: realLights().filter(s => s.state === "on").map(s => s.entity_id) }); }
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
