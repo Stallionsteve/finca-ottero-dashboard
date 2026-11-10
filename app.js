@@ -458,7 +458,7 @@
         <div class="grow"><h3>Air con on spare power</h3><div class="row-sub">${on ? "On" : "Off"} · spare power ${avail && avail.state === "on" ? "available now" : "not available now"}${C.alexaAC.filter(u => u.temp && num(u.temp) !== null).map(u => ` · ${esc(u.name.toLowerCase())} ${num(u.temp).toFixed(1)} °C`).join("")}</div></div>
         ${a ? sw(a.entity_id, on, "Air con on spare power") : ""}
       </div>
-      <p class="note">${icon("info")}<span>With spare power (battery over 50 % or solar 2.5 kW), a room at 21 °C or below is heated to 23 °C and a room at 25 °C or above is cooled to 23 °C; the unit switches off at 23 °C or when spare power runs out. Living room uses its own thermometer; the master bedroom is estimated as hallway − 2 °C, with a 90-minute limit per session. No automatic starts 22:30–08:00. Units you start yourself are never switched off by it.</span></p>
+      <p class="note">${icon("info")}<span>With spare power (battery over 50 % or solar 2.5 kW), a room at 21 °C or below is heated to 23 °C and a room at 25 °C or above is cooled to 23 °C; the unit switches off at 23 °C or when spare power runs out. Living room uses its own thermometer; the master bedroom is estimated as hallway − 2 °C, with a 90-minute limit per session. Quiet from 22:30: no automatic starts after 21:00, and any automatic session ends at 22:15 so nothing beeps after 22:30. Units you start yourself are never switched off by it.</span></p>
     </article>`;
   }
   function viewClimate() {
