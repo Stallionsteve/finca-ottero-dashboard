@@ -449,7 +449,7 @@
 
   function viewLighting() {
     const areas = lightAreas();
-    const extra = Object.values(store.states).filter(s => domainOf(s.entity_id) === "switch" && !isHidden(s) && C.lightingSwitches.some(r => r.test(nm(s))));
+    const extra = Object.values(store.states).filter(s => domainOf(s.entity_id) === "switch" && !isHidden(s) && !/^switch\.(1000f13fd7_power|finca_)/.test(s.entity_id) && C.lightingSwitches.some(r => r.test(nm(s))));  // bedroom: the remembered-state switch, not the raw pulse relay
     const sensors = all("binary_sensor").filter(s => ["motion", "occupancy"].includes(s.attributes.device_class) && /hue|motion/i.test(nm(s) + platformOf(s.entity_id)));
     const lightsOn = realLights().filter(s => s.state === "on").length;
     return `<section class="view">
