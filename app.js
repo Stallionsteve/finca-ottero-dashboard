@@ -170,6 +170,26 @@
     clearTimeout(toast.t); toast.t = setTimeout(() => { host.innerHTML = ""; }, 3600);
   }
 
+  // ---------- update bubble (12 Nov): updates that ask first, shown while the app is open ----------
+  const ASK_UPDATES = ["update.home_assistant_core_update", "update.home_assistant_operating_system_update", "update.ewelink_smart_home_update", "update.mosquitto_broker_update"];
+  const laterUpdates = new Set();
+  function updateBubble() {
+    let host = $("#update-host");
+    if (!host) { host = document.createElement("div"); host.id = "update-host"; document.body.appendChild(host); }
+    if (store.mode === "demo") { host.innerHTML = ""; return; }
+    const busy = ASK_UPDATES.map(st).find(s => s && s.attributes.in_progress);
+    const u = ASK_UPDATES.map(st).find(s => s && s.state === "on" && !s.attributes.in_progress && !laterUpdates.has(s.entity_id + s.attributes.latest_version));
+    const a = busy ? busy.attributes : u ? u.attributes : null;
+    const html = !a ? "" : busy
+      ? `<div class="upd" role="status"><strong>Updating ${esc(a.title || "")}…</strong><span>A backup was made first. You'll get a message on your iPhone when it's checked.</span></div>`
+      : `<div class="upd" role="dialog" aria-label="Update available"><strong>Update available</strong>
+          <span>${esc(a.title || "")} ${esc(a.latest_version || "")} (you have ${esc(a.installed_version || "")}). A backup is made first, then everything is checked.</span>
+          <div class="upd-acts"><button class="btn btn-primary" data-upd-now="${esc(u.entity_id)}">Update now</button>
+          <button class="btn btn-ghost" data-upd-later="${esc(u.entity_id + a.latest_version)}">Later</button>
+          <button class="btn btn-ghost" data-upd-skip="${esc(u.entity_id)}">Ignore this version</button></div></div>`;
+    if (host.innerHTML !== html) host.innerHTML = html;
+  }
+
   // ---------- service calls ----------
   async function svc(domain, service, data = {}, target) {
     try {
@@ -780,6 +800,7 @@
       if (old && (old.naturalWidth || !old.complete)) { img.replaceWith(old); return; }  // loaded or still loading: keep it
       const cam = st(img.dataset.cam); if (cam && cam.attributes.entity_picture) img.src = store.hassUrl + cam.attributes.entity_picture;
     });
+    updateBubble();
     $("#conn").textContent = (store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…") + (window.FINCA_VERSION ? ` · ${window.FINCA_VERSION.split(" ")[0]}` : "");
     $("#conn").title = window.FINCA_VERSION ? `App version ${window.FINCA_VERSION}` : "";
     $("#conn").className = "conn" + (store.mode === "demo" ? " demo" : "");
@@ -1012,11 +1033,14 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
     if (!t) return;
     const d = t.dataset;
     if (t.id === "jmic") { listen(); return; }
     if (d.ask) { ask(d.ask); return; }
+    if (d.updNow) { svc("script", "turn_on", { variables: { entity: d.updNow } }, { entity_id: "script.finca_install_update" }).then(() => toast("Backing up, then updating. You'll get a message when it's checked.")).catch(() => {}); laterUpdates.add(d.updNow + ((st(d.updNow) || {}).attributes || {}).latest_version); updateBubble(); return; }
+    if (d.updLater) { laterUpdates.add(d.updLater); updateBubble(); toast("OK, I'll ask again next time the app opens."); return; }
+    if (d.updSkip) { svc("update", "skip", {}, { entity_id: d.updSkip }).then(() => toast("Ignored. You'll hear about the next version.")).catch(() => {}); return; }
     if (d.toggle) {
       ev.preventDefault();
       const s = st(d.toggle); if (!s || s.state === "unavailable") return;  // "unknown" (never used yet) counts as off
