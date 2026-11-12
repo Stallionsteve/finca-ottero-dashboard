@@ -1181,6 +1181,10 @@
     // The sign-in round trip drops the page name (#security etc.); remember it and put it back.
     try { if (location.hash && !location.search.includes("auth_callback")) sessionStorage.setItem("finca.hash", location.hash); } catch { /* storage unavailable */ }
     const H = window.HAWS;
+    // Shown inside the Home Assistant app (a "Webpage" dashboard, e.g. on the wall tablet): borrow its sign-in and
+    // connection — a second sign-in inside the embedded page is refused ("Invalid redirect URI").
+    const parentHass = (() => { try { if (window.parent === window) return null; const el = window.parent.document.querySelector("home-assistant"); return el && el.hass && el.hass.connection ? el.hass : null; } catch { return null; } })();
+    if (parentHass) { await startWith(parentHass.connection); return; }
     let auth;
     try {
       auth = await H.getAuth({
@@ -1196,7 +1200,10 @@
       let h = location.hash; try { h = h || sessionStorage.getItem("finca.hash") || ""; sessionStorage.removeItem("finca.hash"); } catch { /* storage unavailable */ }
       history.replaceState(null, "", location.pathname + h);
     }
-    const conn = await H.createConnection({ auth });
+    await startWith(await H.createConnection({ auth }));
+  }
+  async function startWith(conn) {
+    const H = window.HAWS;
     store.conn = conn; store.online = true;
     conn.addEventListener("ready", () => { store.online = true; scheduleRender(); });
     conn.addEventListener("disconnected", () => { store.online = false; scheduleRender(); });
