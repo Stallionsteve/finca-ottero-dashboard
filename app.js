@@ -1026,8 +1026,17 @@
     });
     await deliver(speech, url);
   }
+  // Inside the Home Assistant app the page has no microphone of its own (plain http), but the app does: hand voice to
+  // its built-in Assist, listening straight away, on the Jarvis pipeline.
+  function nativeAssist() {
+    const ext = store.parentHass && store.parentHass.auth && store.parentHass.auth.external;
+    if (!ext || !ext.config || !ext.config.hasAssist) return false;
+    const jarvis = (store.pipelines || []).find(p => /jarvis/i.test(p.name));
+    try { ext.fireMessage({ type: "assist/show", payload: { pipeline_id: (jarvis && jarvis.id) || store.preferredPipeline || undefined, start_listening: true } }); return true; } catch { return false; }
+  }
   async function listen() {
     if (J.listening) { J.listening.stop(); return; }
+    if (nativeAssist()) { closeLayer(); return; }
     primeAudio();
     if (store.mode === "demo") { addMsg("sys", "Voice works when the app is connected to Home Assistant. Type a question to try the demo."); return; }
     if (!window.isSecureContext || !navigator.mediaDevices) {
@@ -1173,7 +1182,7 @@
     if (location.hash === "#more") return;
     closeLayer(); render(true);
   });
-  $("#jarvis-fab").addEventListener("click", () => { primeAudio(); openJarvis(); });
+  $("#jarvis-fab").addEventListener("click", () => { primeAudio(); if (!nativeAssist()) openJarvis(); });
 
   // ---------- connection ----------
   async function connectLive(hassUrl) {
@@ -1184,7 +1193,13 @@
     // Shown inside the Home Assistant app (a "Webpage" dashboard, e.g. on the wall tablet): borrow its sign-in and
     // connection — a second sign-in inside the embedded page is refused ("Invalid redirect URI").
     const parentHass = (() => { try { if (window.parent === window) return null; const el = window.parent.document.querySelector("home-assistant"); return el && el.hass && el.hass.connection ? el.hass : null; } catch { return null; } })();
-    if (parentHass) { await startWith(parentHass.connection); return; }
+    if (parentHass) {
+      store.parentHass = parentHass;
+      // On the wall tablet (landscape) the Home Assistant sidebar took a third of the screen: keep it hidden; the ☰ in the
+      // title bar still opens it.
+      try { window.parent.document.querySelector("home-assistant").dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock: "always_hidden" }, bubbles: true, composed: true })); } catch { /* older Home Assistant */ }
+      await startWith(parentHass.connection); return;
+    }
     let auth;
     try {
       auth = await H.getAuth({
