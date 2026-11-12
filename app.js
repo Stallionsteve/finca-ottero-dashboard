@@ -1075,7 +1075,7 @@
     primeAudio();
     if (store.mode === "demo") { addMsg("sys", "Voice works when the app is connected to Home Assistant. Type a question to try the demo."); return; }
     if (!window.isSecureContext || !navigator.mediaDevices) {
-      addMsg("sys", "Your browser only allows the microphone on a secure (https) connection. Tap the microphone on your keyboard to dictate instead.");
+      addMsg("sys", "Voice isn't available on the home link (the iPhone, iPad and Android only allow the microphone on a secure link). To talk to Jarvis, open the Home Assistant app — it opens on this Finca page and its Jarvis button listens. Or type here, or use the microphone on your keyboard to dictate.");
       $("#jtext").focus(); return;
     }
     // Keep the microphone for 2 minutes after each use, so iPhone/iPad ask permission once per session, not every tap.
