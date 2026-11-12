@@ -484,3 +484,16 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 .upd-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .upd-acts .btn { padding: 8px 12px; font-size: 14px; }
 @media (min-width: 900px) { .upd { left: calc(50% + var(--rail) / 2); } }
+
+/* Most used (top of Home) */
+.quick { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.qbtn { display: grid; justify-items: start; gap: 6px; text-align: left; min-height: 112px; padding: 18px; border-radius: 22px;
+  background: var(--night-2); border: 1px solid var(--line); color: var(--sand); font: inherit; cursor: pointer; }
+.qbtn svg { width: 30px; height: 30px; color: var(--sunset); }
+.qbtn b { font-size: 18px; line-height: 1.2; }
+.qbtn span { color: var(--muted); font-size: 15px; }
+.qbtn.is-on { background: linear-gradient(135deg, rgba(255, 107, 107, 0.22), rgba(255, 159, 67, 0.22)); border-color: var(--sunset); }
+.qbtn.is-on span { color: var(--sand); font-weight: 600; }
+.qbtn:active { transform: scale(0.98); }
+.quick .qbtn:nth-child(n+3) { display: none; }
+@media (min-width: 700px) { .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); } .quick .qbtn:nth-child(n+3) { display: grid; } .qbtn { min-height: 140px; } .qbtn b { font-size: 20px; } }

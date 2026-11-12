@@ -274,6 +274,51 @@
     return [...new Set(ids)].map(st).filter(Boolean);
   }
 
+  // ---------- Most used (12 Nov): the buttons you press most, at the top of Home; learns per device ----------
+  const USE_KEY = "usage";
+  function usageKey(d, t) {
+    if (d.toggle) return "toggle:" + d.toggle;
+    if (d.area) { const card = t.closest("[data-room]"); return card ? "area:" + card.dataset.room : null; }
+    if (d.acquick) return "ac:" + d.acquick + ":" + d.mode;
+    if (d.action === "gate") return "gate";
+    return null;
+  }
+  function recordUse(key) {
+    if (!key) return;
+    const u = mem.get(USE_KEY, {}), now = Date.now(), e = u[key] || { s: 0, t: now };
+    e.s = e.s * Math.pow(0.5, (now - e.t) / (14 * 864e5)) + 1; e.t = now;  // score halves every 2 weeks unused
+    u[key] = e; mem.set(USE_KEY, u);
+  }
+  function roomLights(room) { return realLights().filter(s => (areaOf(s.entity_id) || "") === room); }
+  function quickButton(key) {
+    const [kind, a, b] = key.split(":");
+    if (kind === "toggle") {
+      const s = st(a); if (!s || !ok(s)) return "";
+      const on = s.state === "on", isParty = a === "switch.finca_party_mode";
+      const label = isParty ? "Party" : nm(s);
+      return `<button class="qbtn ${on ? "is-on" : ""}" data-toggle="${esc(a)}" aria-pressed="${on}">${icon(isParty ? "party" : /fire/i.test(label) ? "fire" : /pump/i.test(label) ? "pump" : /jacuzzi/i.test(label) ? "jacuzzi" : a.startsWith("light.") ? "bulb" : "power")}<b>${esc(label)}</b><span>${on ? "On" : "Off"}</span></button>`;
+    }
+    if (kind === "area") {
+      const ls = roomLights(a).filter(ok); if (!ls.length) return "";
+      const on = ls.some(s => s.state === "on");
+      return `<button class="qbtn ${on ? "is-on" : ""}" data-area="${esc(ls.map(s => s.entity_id).join(","))}" data-room="${esc(a)}" aria-checked="${on}">${icon("bulb")}<b>${esc(a)} lights</b><span>${on ? "On" : "Off"}</span></button>`;
+    }
+    if (kind === "ac") {
+      const u = (C.alexaAC || []).find(x => x.id === a); if (!u) return "";
+      return `<button class="qbtn" data-acquick="${esc(a)}" data-mode="${esc(b)}">${icon(b === "heat" ? "heater" : "snow")}<b>${esc(u.name)} air con</b><span>${b === "heat" ? "Heat" : "Cool"} to 23°</span></button>`;
+    }
+    if (kind === "gate") return find("gate") ? `<button class="qbtn" data-action="gate">${icon("gate")}<b>Main gate</b><span>Open</span></button>` : "";
+    return "";
+  }
+  function quickCard() {
+    const u = mem.get(USE_KEY, {}), now = Date.now();
+    const score = k => u[k] ? u[k].s * Math.pow(0.5, (now - u[k].t) / (14 * 864e5)) : 0;
+    const defaults = ["area:Living Room", "toggle:switch.finca_party_mode", "area:Kitchen", "ac:living:heat"];
+    const keys = [...new Set([...Object.keys(u).filter(k => score(k) >= 0.5).sort((x, y) => score(y) - score(x)), ...defaults])];
+    const btns = []; for (const k of keys) { const h = quickButton(k); if (h) btns.push(h); if (btns.length === 4) break; }
+    return btns.length ? `<div class="quick" aria-label="Most used">${btns.join("")}</div>` : "";
+  }
+
   function viewHome() {
     const e = energy();
     const lights = realLights(), lightsOn = lights.filter(s => s.state === "on").length;
@@ -301,6 +346,8 @@
           <span class="chip" title="${esc(off.map(nm).join(", ") || "Everything is reachable")}"><span class="dot ${off.length ? "warn" : ""}"></span>${off.length ? `<span class="v">${off.length}</span> offline` : "All devices online"}</span>
         </div>
       </div>
+
+      ${quickCard()}
 
       <div class="tiles">
         ${tile({ id: "lighting", title: "Lighting", ic: "bulb", tint: "sunset", href: "#lighting", on: lightsOn > 0, state: lights.length ? `<strong>${lightsOn} of ${lights.length}</strong> lights on` : '<span class="unavail">No lights found</span>' })}
@@ -350,7 +397,7 @@
         <span class="ico" style="--tint:var(--sunset)">${icon("bulb")}</span>
         <div class="grow"><h3>${esc(b.name)}</h3><div class="row-sub">${members.length} light${members.length === 1 ? "" : "s"} · ${onCount} on</div></div>
         ${[b.group, ...members].some(x => x && (hasColour(x) || hasWhiteTemp(x))) ? `<button class="round-btn colour-btn" data-colour="${esc(b.name)}" aria-label="${esc(b.name)} colour"><span class="swatch" style="background:${swatchOf(b.group || members.find(x => x.state === "on") || members[0])}"></span></button>` : ""}
-        <button class="switch" role="switch" aria-checked="${anyOn}" aria-label="${esc(b.name)} lights" data-area="${esc(ids)}" style="--tint:var(--sunset)"></button>
+        <button class="switch" role="switch" aria-checked="${anyOn}" aria-label="${esc(b.name)} lights" data-area="${esc(ids)}" data-room="${esc(b.name)}" style="--tint:var(--sunset)"></button>
       </div>
       ${master && dimmable(master) ? `<div class="bri">
         <input type="range" id="bri-${esc(b.name.replace(/\W/g, ""))}" min="1" max="100" value="${bri || 50}" style="--val:${bri || 50}%" data-bri="${esc(ids)}" aria-label="${esc(b.name)} brightness" ${anyOn ? "" : "disabled"}>
@@ -1036,6 +1083,7 @@
     const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
     if (!t) return;
     const d = t.dataset;
+    try { recordUse(usageKey(d, t)); } catch { /* never block the button */ }
     if (t.id === "jmic") { listen(); return; }
     if (d.ask) { ask(d.ask); return; }
     if (d.updNow) { svc("script", "turn_on", { variables: { entity: d.updNow } }, { entity_id: "script.finca_install_update" }).then(() => toast("Backing up, then updating. You'll get a message when it's checked.")).catch(() => {}); laterUpdates.add(d.updNow + ((st(d.updNow) || {}).attributes || {}).latest_version); updateBubble(); return; }
