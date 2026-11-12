@@ -966,9 +966,13 @@
       addMsg("sys", "Your browser only allows the microphone on a secure (https) connection. Tap the microphone on your keyboard to dictate instead.");
       $("#jtext").focus(); return;
     }
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-    catch { addMsg("sys", "Microphone permission was declined."); return; }
+    // Keep the microphone for 2 minutes after each use, so iPhone/iPad ask permission once per session, not every tap.
+    clearTimeout(J.micRelease);
+    let stream = J.mic && J.mic.getTracks().some(t => t.readyState === "live") ? J.mic : null;
+    if (!stream) {
+      try { stream = J.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+      catch { addMsg("sys", "Microphone permission was declined."); return; }
+    }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(stream);
     const proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -977,7 +981,8 @@
     const stop = () => {
       if (!J.listening) return;
       J.listening = null; $("#jmic") && $("#jmic").classList.remove("listening");
-      proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close();
+      proc.disconnect(); src.disconnect(); ctx.close();
+      J.micRelease = setTimeout(() => { if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; } }, 120000);
       if (handler !== null) store.conn.socket.send(new Uint8Array([handler]));
     };
     J.listening = { stop };
