@@ -1026,6 +1026,41 @@
     });
     await deliver(speech, url);
   }
+  // ---------- kiosk: inside the Home Assistant app, hide its sidebar and title bar (wall tablet) ----------
+  // Same-origin page, so the parent's (shadow) DOM can be styled — what free kiosk add-ons do. Re-applied every 2 s
+  // because Home Assistant redraws. Tap the Finca Ottero logo 3 times quickly to show/hide them again.
+  const KIOSK_CSS = {
+    main: "ha-sidebar{display:none!important} ha-drawer{--mdc-drawer-width:0px!important;--sidebar-width:0px!important;--ha-sidebar-width:0px!important} :host{--app-drawer-width:0px!important}",
+    root: ".header,.toolbar,app-header,ha-top-app-bar-fixed{display:none!important} #view,hui-view-container{padding-top:0!important;margin-top:0!important;min-height:100vh!important;height:100vh!important}",
+  };
+  function kiosk(on) {
+    clearInterval(kiosk.t);
+    const put = (root, key) => {
+      if (!root) return;
+      let el = root.querySelector("style[data-finca-kiosk]");
+      if (on && !el) { el = root.ownerDocument.createElement("style"); el.dataset.fincaKiosk = "1"; el.textContent = KIOSK_CSS[key]; root.appendChild(el); }
+      if (!on && el) el.remove();
+    };
+    const apply = () => {
+      try {
+        const ha = window.parent.document.querySelector("home-assistant");
+        const main = ha && ha.shadowRoot && ha.shadowRoot.querySelector("home-assistant-main");
+        const mr = main && main.shadowRoot; put(mr, "main");
+        const drawer = mr && mr.querySelector("ha-drawer"); if (drawer && drawer.shadowRoot) put(drawer.shadowRoot, "main");
+        const panel = mr && mr.querySelector("partial-panel-resolver ha-panel-lovelace");
+        const huiRoot = panel && panel.shadowRoot && panel.shadowRoot.querySelector("hui-root");
+        put(huiRoot && huiRoot.shadowRoot, "root");
+      } catch { /* not inside Home Assistant */ }
+    };
+    apply(); if (on) kiosk.t = setInterval(apply, 2000);
+  }
+  let logoTaps = [];
+  document.addEventListener("click", ev => {
+    if (!store.parentHass || !ev.target.closest(".brand")) return;
+    const now = Date.now(); logoTaps = logoTaps.filter(t => now - t < 1200).concat(now);
+    if (logoTaps.length >= 3) { logoTaps = []; const on = !mem.get("kiosk", true); mem.set("kiosk", on); kiosk(on); toast(on ? "Wall mode: Home Assistant menu hidden" : "Home Assistant menu shown — tap the logo 3 times to hide it again"); }
+  });
+
   // Inside the Home Assistant app the page has no microphone of its own (plain http), but the app does: hand voice to
   // its built-in Assist, listening straight away, on the Jarvis pipeline.
   function nativeAssist() {
@@ -1197,7 +1232,7 @@
       store.parentHass = parentHass;
       // On the wall tablet (landscape) the Home Assistant sidebar took a third of the screen: keep it hidden; the ☰ in the
       // title bar still opens it.
-      try { window.parent.document.querySelector("home-assistant").dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock: "always_hidden" }, bubbles: true, composed: true })); } catch { /* older Home Assistant */ }
+      kiosk(mem.get("kiosk", true));
       await startWith(parentHass.connection); return;
     }
     let auth;
