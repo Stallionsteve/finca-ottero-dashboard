@@ -567,8 +567,8 @@
         <div class="grow"><h3>Intruder warning</h3><div class="row-sub">${on ? "On" : "Off"} · ${alarms.length ? `watching ${alarms.length} alarm${alarms.length > 1 ? "s" : ""}` : "waiting for the Ring Alarm to be connected"}${sc && sc.state === "on" ? " · playing now" : ""}</div></div>
         ${a ? sw(a.entity_id, on, "Intruder warning") : ""}
       </div>
-      <p class="note" style="margin-bottom:12px">${icon("music")}<span>If the alarm goes off, every Sonos speaker says six times: <b>“¡Atención! Intruso detectado. La policía ha sido avisada.”</b> Then each speaker goes back to what it was playing.</span></p>
-      <button class="btn btn-sm" data-action="intruder-test">Test quietly</button>
+      <p class="note" style="margin-bottom:12px">${icon("music")}<span>If the alarm goes off, every Sonos speaker says at full volume, over and over until the alarm is turned off: <b>“¡Atención! Intruso detectado. La policía ha sido avisada.”</b> White lights go off and every colour light turns bright red. Afterwards the speakers and lights go back to how they were. Safety limit 15 minutes; say “Jarvis, stop the alarm warning” to stop it sooner.</span></p>
+      ${(st("switch.finca_intruder_warning_active") || {}).state === "on" ? '<button class="btn btn-sm btn-primary" data-action="intruder-stop">Stop the warning</button>' : '<button class="btn btn-sm" data-action="intruder-test">Test quietly</button>'}
     </article>`;
   }
   function viewSecurity() {
@@ -1174,11 +1174,12 @@
     else if (a === "gate-go") { closeLayer(); openGate(); }
     else if (a === "intruder-test") {
       sheet(`<span class="ico big-ico" style="--tint:var(--coral)">${icon("siren")}</span><h2>Test the intruder warning?</h2>
-        <p>Plays the Spanish warning once on every Sonos speaker at low volume (25 %), then puts the speakers back as they were.</p>
+        <p>Plays the Spanish warning once on every Sonos speaker at low volume (25 %), then puts the speakers back as they were. The lights aren't changed in the test.</p>
         <div class="acts"><button class="btn" data-action="close" id="sheet-cancel">Cancel</button><button class="btn btn-primary" data-action="intruder-test-go">Play test</button></div>`);
       $("#sheet-cancel").focus();
     }
-    else if (a === "intruder-test-go") { closeLayer(); svc("script", "turn_on", { variables: { repeats: 1, volume: 0.25 } }, { entity_id: "script.finca_intruder_warning" }).then(() => toast(store.mode === "demo" ? "Demo only. Nothing was played." : "Test playing on the Sonos speakers.")).catch(() => {}); }
+    else if (a === "intruder-test-go") { closeLayer(); svc("script", "turn_on", { variables: { repeats: 1, volume: 0.25, lights: false } }, { entity_id: "script.finca_intruder_warning" }).then(() => toast(store.mode === "demo" ? "Demo only. Nothing was played." : "Test playing on the Sonos speakers.")).catch(() => {}); }
+    else if (a === "intruder-stop") { svc("script", "turn_on", {}, { entity_id: "script.finca_intruder_stop" }).then(() => toast("Stopping. Speakers and lights go back to how they were.")).catch(() => {}); }
     else if (a === "scan") scanDevices(true);
     else if (a === "all-off") allOffSheet();
     else if (a === "all-off-go") { closeLayer(); svc("light", "turn_off", {}, { entity_id: realLights().filter(s => s.state === "on").map(s => s.entity_id) }); }
