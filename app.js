@@ -545,10 +545,11 @@
     return `<section class="view">
       <div class="page-head"><div><h1>Climate</h1><p>Air conditioning · temperatures in °C</p></div></div>
       ${climates.length ? `<div class="grid g-2">${climates.map(climateCard).join("")}</div>` : ""}
-      ${autoCard()}
-      <h2 class="section">Through Alexa</h2>
+      <h2 class="section">Air con units</h2>
       ${acReady ? `<div class="grid g-2">${C.alexaAC.map(alexaCard).join("")}</div>`
         : '<p class="empty">The living room and master bedroom units need the Alexa Media Player integration and the Finca package installed in Home Assistant. See the setup guide.</p>'}
+      <h2 class="section">Automatic</h2>
+      ${autoCard()}
       <p class="note">${icon("lock")}<span>The guest bedroom unit is deliberately left out so guests can control it themselves.</span></p>
     </section>`;
   }
