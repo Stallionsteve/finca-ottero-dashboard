@@ -116,6 +116,7 @@
     send: '<path d="M4 12 20 4l-4 16-4-7z"/><path d="m12 13 8-9"/>',
     more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
     plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    heart: '<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/>',
     party: '<path d="M4 20 9.5 6.5 17.5 14.5z"/><path d="M8 15.5l2.5 2.5M11 10.5l4.5 4.5"/><path d="M14 4.5c.8 1 .8 2-.2 2.8M18.5 9c1-.8 2-.8 2.8.2M17 3.5h.01M20.5 6.5h.01M20 12.5h.01"/>',
     fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C11 6 12.5 3 15 3.5s2.2 4-3 6.7M13.8 12c4.2-1 7.2.5 6.7 3s-4 2.2-6.7-3M12 13.8c1 4.2-.5 7.2-3 6.7s-2.2-4 3-6.7M10.2 12C6 13 3 11.5 3.5 9s4-2.2 6.7 3"/>'
   };
@@ -295,8 +296,8 @@
     if (kind === "toggle") {
       const s = st(a); if (!s || !ok(s)) return "";
       const on = s.state === "on", isParty = a === "switch.finca_party_mode";
-      const label = isParty ? "Party" : nm(s);
-      return `<button class="qbtn ${on ? "is-on" : ""}" data-toggle="${esc(a)}" aria-pressed="${on}">${icon(isParty ? "party" : /fire/i.test(label) ? "fire" : /pump/i.test(label) ? "pump" : /jacuzzi/i.test(label) ? "jacuzzi" : a.startsWith("light.") ? "bulb" : "power")}<b>${esc(label)}</b><span>${on ? "On" : "Off"}</span></button>`;
+      const label = isParty ? "Party" : /romantic/.test(a) ? "Romantic" : nm(s);
+      return `<button class="qbtn ${on ? "is-on" : ""}" data-toggle="${esc(a)}" aria-pressed="${on}">${icon(isParty ? "party" : /romantic/i.test(a) ? "heart" : /fire/i.test(label) ? "fire" : /pump/i.test(label) ? "pump" : /jacuzzi/i.test(label) ? "jacuzzi" : a.startsWith("light.") ? "bulb" : "power")}<b>${esc(label)}</b><span>${on ? "On" : "Off"}</span></button>`;
     }
     if (kind === "area") {
       const ls = roomLights(a).filter(ok); if (!ls.length) return "";
@@ -364,6 +365,8 @@
         ${(() => { const p = st("switch.finca_party_mode"); const on = p && p.state === "on";
           return p || store.mode === "demo" ? tile({ id: "party", title: "Party", ic: "party", tint: "coral", href: "#media", on, state: on ? "<strong>Party on</strong> · lights & music" : "Disco lights and music", ctl: p ? sw(p.entity_id, on, "Party mode", "coral") : "" })
             : tile({ id: "jarvis", title: "Jarvis", ic: "mic", tint: "turq", href: "#jarvis", state: "Ask about the house" }); })()}
+        ${(() => { const r = st("switch.finca_romantic_mode"); if (!r && store.mode !== "demo") return ""; const on = r && r.state === "on";
+          return tile({ id: "romance", title: "Romantic", ic: "heart", tint: "coral", href: "#media", on, state: on ? "<strong>Mood set</strong> · soft lights & Marvin Gaye" : "Soft lights and Marvin Gaye", ctl: r ? sw(r.entity_id, on, "Romantic mode", "coral") : "" }); })()}
       </div>
     </section>`;
   }
@@ -779,7 +782,9 @@
     return `<section class="view">
       <div class="page-head"><div><h1>Music</h1><p>Sonos and speakers</p></div>
         ${(() => { const p = st("switch.finca_party_mode"); if (!p) return ""; const on = p.state === "on";
-          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}</div>
+          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}
+        ${(() => { const r = st("switch.finca_romantic_mode"); if (!r) return ""; const on = r.state === "on";
+          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${r.entity_id}">${icon("heart")}${on ? "End romantic mode" : "Romantic mode"}</button>`; })()}</div>
       ${players.length ? `<div class="grid g-2">${players.map(card).join("")}</div>` : '<p class="empty">No speakers found.</p>'}
     </section>`;
   }
