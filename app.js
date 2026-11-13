@@ -458,8 +458,13 @@
     return `<section class="view">
       <div class="page-head">
         <div><h1>Lighting</h1><p>${areas.length} rooms · ${lightsOn} lights on</p></div>
-        <button class="btn" data-action="all-off" ${lightsOn ? "" : "disabled"}>${icon("moon")}All lights off</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${(() => { const pl = st("switch.finca_party_lights"); if (!pl) return ""; const on = pl.state === "on";
+            return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${pl.entity_id}">${icon("party")}${on ? "Stop party lights" : "Party lights"}</button>`; })()}
+          <button class="btn" data-action="all-off" ${lightsOn ? "" : "disabled"}>${icon("moon")}All lights off</button>
+        </div>
       </div>
+      ${(st("switch.finca_party_lights") || {}).state === "on" ? `<p class="note">${icon("music")}<span>Party lights are on. Pick your own music on the <a href="#media">Music</a> page.</span></p>` : ""}
       ${areas.length ? `<div class="grid g-2">${areas.map(areaCard).join("")}</div>` : '<p class="empty">No lights found in Home Assistant yet. Add the Philips Hue integration in Settings → Devices &amp; services.</p>'}
       ${extra.length ? `<h2 class="section">Other lights · eWeLink</h2><div class="card">
         ${extra.map(s => `<div class="row"><span class="ico" style="--tint:var(--sunset)">${icon(/fire/i.test(nm(s)) ? "fire" : "bulb")}</span>
