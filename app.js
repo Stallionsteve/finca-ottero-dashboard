@@ -1331,6 +1331,19 @@
     if (location.hash === "#more") return;
     closeLayer(); render(true);
   });
+  { const fab = $("#jarvis-fab"); if (fab && !fab.querySelector("svg.hud")) fab.innerHTML = `<svg class="hud" viewBox="0 0 100 100" aria-hidden="true">
+  <defs>
+    <radialGradient id="jcore" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#1b4fd8"/><stop offset=".55" stop-color="#0b1f6e"/><stop offset="1" stop-color="#040b2c"/></radialGradient>
+    <radialGradient id="jglow" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#5fd4ff" stop-opacity="0"/><stop offset=".8" stop-color="#5fd4ff" stop-opacity=".55"/><stop offset="1" stop-color="#5fd4ff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="49" fill="url(#jglow)"/>
+  <g class="ring r1"><circle cx="50" cy="50" r="45" fill="none" stroke="#7fdcff" stroke-width="1.2" stroke-dasharray="18 6 4 6" opacity=".9"/></g>
+  <g class="ring r2"><circle cx="50" cy="50" r="40.5" fill="none" stroke="#3ab8ff" stroke-width="3" stroke-dasharray="2 3.2" opacity=".75"/></g>
+  <g class="ring r3"><circle cx="50" cy="50" r="36" fill="none" stroke="#9fe8ff" stroke-width="1.4" stroke-dasharray="40 10 12 10" opacity=".85"/></g>
+  <circle cx="50" cy="50" r="32" fill="url(#jcore)" stroke="#6fd7ff" stroke-width="1.2"/>
+  <circle class="spark" cx="40" cy="38" r="14" fill="#7fdcff" opacity=".18"/>
+  <text x="50" y="54.5" text-anchor="middle" class="jlabel">JARVIS</text>
+</svg>`; }
   $("#jarvis-fab").addEventListener("click", () => { primeAudio(); if (!nativeAssist()) openJarvis(); });
 
   // ---------- connection ----------
