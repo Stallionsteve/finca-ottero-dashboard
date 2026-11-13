@@ -327,7 +327,7 @@
     const sunS = st("sun.sun");
     const sunset = sunS && sunS.attributes.next_setting ? new Date(sunS.attributes.next_setting).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
     const alarm = all("alarm_control_panel")[0];
-    const cams = all("camera");
+    const cams = cameraList();
     const playing = all("media_player").filter(s => s.state === "playing");
     const climates = all("climate").filter(ok);
     const date = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
@@ -546,12 +546,19 @@
   }
 
   const camName = s => nm(s).replace(/\s+live view$/i, "");
+  // Ring-MQTT (13 Nov) adds camera.<name>_snapshot next to Ring's camera.<name>_live_view: one card per camera,
+  // picture from the snapshot (refreshed on every motion/ding), live stream and clips from the live view.
+  const snapFor = s => st(s.entity_id.replace(/_live_view$/, "_snapshot"));
+  const cameraList = () => all("camera").filter(c => !(/_snapshot$/.test(c.entity_id) && st(c.entity_id.replace(/_snapshot$/, "_live_view"))));
   function camCard(s) {
-    const pic = s.attributes.entity_picture;
+    const snap = /_live_view$/.test(s.entity_id) ? snapFor(s) : null;
+    const img = snap && ok(snap) && snap.attributes.entity_picture ? snap : s;
+    const pic = img.attributes.entity_picture;
+    const updated = img.last_changed;
     return `<article class="card">
-      <div class="cam-view">${pic && ok(s) ? `<img data-cam="${s.entity_id}" alt="Latest image from ${esc(nm(s))}">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No snapshot yet" : "Camera offline"}</span></div>`}
+      <div class="cam-view">${pic && ok(img) ? `<img data-cam="${img.entity_id}" alt="Latest image from ${esc(nm(s))}">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No snapshot yet" : "Camera offline"}</span></div>`}
         <span class="pill tag">${ok(s) ? "Snapshot" : "Offline"}</span></div>
-      <div class="cam-meta"><div><b>${esc(camName(s))}</b><div class="row-sub">${s.last_changed ? "Updated " + ago(s.last_changed) : ""}</div></div>
+      <div class="cam-meta"><div><b>${esc(camName(s))}</b><div class="row-sub">${updated ? "Updated " + ago(updated) : ""}</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
           ${s.attributes.video_url ? `<button class="btn btn-sm btn-ghost" data-clip="${s.entity_id}">Last recording</button>` : ""}
           ${ok(s) ? `<button class="btn btn-sm" data-live="${s.entity_id}">Live view</button>` : ""}</div></div>
@@ -574,10 +581,10 @@
   function viewSecurity() {
     // owner, 13 Nov: cameras first; recent activity as a compact horizontal strip; door/window/motion sensors
     // (Ring Alarm via Ring-MQTT) shown when they exist.
-    const alarms = all("alarm_control_panel"), cams = all("camera");
+    const alarms = all("alarm_control_panel"), cams = cameraList();
     const SENSOR_CLASSES = ["motion", "occupancy", "door", "window", "opening", "garage_door"];
     const sensors = Object.values(store.states).filter(s => !isHidden(s) && domainOf(s.entity_id) === "binary_sensor" && SENSOR_CLASSES.includes(s.attributes.device_class)
-      && !/hue_motion|_light_sensor|_motion_sensor_enabled/.test(s.entity_id));
+      && !/hue_motion|_light_sensor|_motion_sensor_enabled/.test(s.entity_id) && platformOf(s.entity_id) !== "hue");
     const activity = Object.values(store.states)
       .filter(s => !isHidden(s) && ok(s) && (domainOf(s.entity_id) === "event" || sensors.includes(s)))
       .filter(s => domainOf(s.entity_id) !== "event" || /ring|doorbell|ding|motion/i.test(platformOf(s.entity_id) + nm(s)))
