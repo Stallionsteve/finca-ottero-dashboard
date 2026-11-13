@@ -243,6 +243,7 @@
     { id: "pool", label: "Pool", icon: "poollight", rail: true },
     { id: "media", label: "Music", icon: "music", rail: true },
     { id: "devices", label: "Devices", icon: "plus", rail: true },
+    { id: "health", label: "Checks", icon: "battery", rail: true },
     { id: "jarvis", label: "Jarvis", icon: "mic", rail: true }
   ];
   function renderNav(cur) {
@@ -878,7 +879,7 @@
   }
 
   // ---------- render ----------
-  const VIEWS = { home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices };
+  const VIEWS = { home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices, health: viewHealth };
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
   let lastHtml = "", lastView = "";
@@ -1004,6 +1005,40 @@
     sheet(`<h2>${esc(camName(s))} · last recording</h2><div class="cam-view"><video src="${esc(url)}" autoplay playsinline controls></video></div>
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`, true);
   }
+  // ---------- Checks (14 Nov): batteries and offline devices — sensors, cameras, alarm, lights. Pool, jacuzzi, water
+  // heater, TVs and Alexa extras are left out (they are often switched off on purpose).
+  const HEALTH_SKIP = /pool|jacuzzi|dome|water heater|reverb|fire ?tv|firetv|65pus|next (alarm|reminder|timer)|do not disturb|scheduled soc|venus|rec-bms|multiplus|finca battery|wall tablet battery state/i;
+  function healthData() {
+    const states = Object.values(store.states);
+    const devName = s => { const e = store.ents[s.entity_id]; const d = e && store.devices[e.device_id]; return (d && (d.name_by_user || d.name)) || nm(s); };
+    const seen = new Set(), batteries = [];
+    states.filter(s => s.attributes.device_class === "battery" && domainOf(s.entity_id) === "sensor" && !HEALTH_SKIP.test(nm(s) + " " + s.entity_id))
+      .forEach(s => { const name = devName(s).trim(); if (seen.has(name)) return; seen.add(name);
+        const v = parseFloat(s.state); batteries.push({ name, v: Number.isFinite(v) ? v : null, area: areaOf(s.entity_id) }); });
+    batteries.sort((a, b) => (a.v === null ? -1 : a.v) - (b.v === null ? -1 : b.v));
+    const offlineByDevice = new Map();
+    states.filter(s => s.state === "unavailable" && ["sensor", "binary_sensor", "camera", "light", "switch", "alarm_control_panel", "siren", "lock"].includes(domainOf(s.entity_id)))
+      .filter(s => !HEALTH_SKIP.test(nm(s) + " " + s.entity_id + " " + devName(s)) && !isHidden(s) && !["alexa_devices", "alexa_media", "mobile_app"].includes(platformOf(s.entity_id)))
+      .forEach(s => { const name = devName(s).trim(); if (!offlineByDevice.has(name)) offlineByDevice.set(name, { name, area: areaOf(s.entity_id), since: s.last_changed }); });
+    return { batteries, low: batteries.filter(b => b.v !== null && b.v <= 25), offline: [...offlineByDevice.values()].sort((a, b) => a.name.localeCompare(b.name)) };
+  }
+  function viewHealth() {
+    const h = healthData();
+    const row = (title, sub, pill, warn) => `<div class="row"><div class="row-body"><div class="row-title">${esc(title)}</div><div class="row-sub">${sub}</div></div><span class="pill ${warn ? "warn" : "ok"}">${pill}</span></div>`;
+    return `<section class="view">
+      <div class="page-head"><div><h1>Checks</h1><p>${h.low.length} low batter${h.low.length === 1 ? "y" : "ies"} · ${h.offline.length} offline</p></div></div>
+      <div class="grid g-2">
+        <article class="card"><div class="card-head"><span class="ico">${icon("battery")}</span><div class="grow"><h3>Low batteries</h3><div class="row-sub">25 % or less</div></div></div>
+          ${h.low.length ? h.low.map(b => row(b.name, esc(b.area || ""), `${Math.round(b.v)}%`, true)).join("") : '<p class="note">All batteries are fine.</p>'}</article>
+        <article class="card"><div class="card-head"><span class="ico">${icon("wifi")}</span><div class="grow"><h3>Offline or unplugged</h3><div class="row-sub">Sensors, cameras, alarm and lights</div></div></div>
+          ${h.offline.length ? h.offline.map(o => row(o.name, `${esc(o.area || "")}${o.area ? " · " : ""}since ${ago(o.since)}`, "Offline", true)).join("") : '<p class="note">Everything is online.</p>'}</article>
+      </div>
+      <h2 class="section">All batteries</h2>
+      <div class="card">${h.batteries.map(b => row(b.name, esc(b.area || ""), b.v === null ? "No reading" : `${Math.round(b.v)}%`, b.v === null || b.v <= 25)).join("")}</div>
+      <p class="note">${icon("info")}<span>Pool, jacuzzi, water heater and TVs aren't listed: they're often switched off at the wall on purpose.</span></p>
+    </section>`;
+  }
+
   function moreSheet() {
     sheet(`<h2>More</h2><div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-nav">${icon(n.icon)}${n.label}</a>`).join("")}</div>
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`);
