@@ -1096,11 +1096,12 @@
       proc.disconnect(); src.disconnect(); ctx.close();
       J.micRelease = setTimeout(() => { if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; } }, 120000);
       if (handler !== null) store.conn.socket.send(new Uint8Array([handler]));
+      handler = null;  // nothing more may be sent for this run (stray audio caused "non-existing handler" errors)
     };
     J.listening = { stop };
     $("#jmic").classList.add("listening");
     proc.onaudioprocess = e => {
-      if (handler === null) return;
+      if (handler === null || !J.listening) return;
       const inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio);
       const out = new Uint8Array(1 + n * 2); out[0] = handler;
       const dv = new DataView(out.buffer);
