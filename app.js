@@ -786,12 +786,19 @@
     </article>`;
   }
   function viewMedia() {
-    const players = all("media_player").filter(s => !["alexa_devices", "alexa_media", "mobile_app"].includes(platformOf(s.entity_id)) && !/^this device$/i.test(nm(s))).sort((a, b) => (platformOf(b.entity_id) === "sonos") - (platformOf(a.entity_id) === "sonos") || nm(a).localeCompare(nm(b)));
+    // Tidy (14 Nov): one tile per speaker — the Sonos ones (Music Assistant, Alexa, the wall tablet's voice and browser
+    // players are copies of the same speakers) — plus one TV tile: the first of the TV's several entries that is online.
+    const all_mp = all("media_player");
+    const speakers_ = all_mp.filter(s => platformOf(s.entity_id) === "sonos");
+    const tvs = all_mp.filter(s => /65pus|philips|tv$/i.test(nm(s)) && platformOf(s.entity_id) !== "sonos" && platformOf(s.entity_id) !== "music_assistant");
+    const tv = tvs.find(ok) || tvs[0];
+    const players = [...speakers_.sort((a, b) => nm(a).localeCompare(nm(b))), ...(tv ? [tv] : [])];
+    const prettyName = s => s === tv ? "TV" : s.entity_id === "media_player.tv_room_tv_room" ? "Living room (Arc)" : nm(s);
     const card = s => {
       const a = s.attributes, vol = Math.round((a.volume_level || 0) * 100);
       return `<article class="card">
         <div class="card-head"><span class="ico" style="--tint:var(--coral)">${icon("music")}</span>
-          <div class="grow"><h3>${esc(nm(s))}</h3><div class="row-sub">${esc(areaOf(s.entity_id) || platformOf(s.entity_id))} · ${esc(ok(s) ? s.state : "offline")}</div></div></div>
+          <div class="grow"><h3>${esc(prettyName(s))}</h3><div class="row-sub">${esc(areaOf(s.entity_id) || "")}${areaOf(s.entity_id) ? " · " : ""}${esc(ok(s) ? s.state : "offline")}</div></div></div>
         ${a.media_title ? `<div class="np">${a.entity_picture ? `<img src="${esc(store.hassUrl + a.entity_picture)}" alt="">` : ""}<div class="t"><div><b>${esc(a.media_title)}</b></div><div class="row-sub">${esc(a.media_artist || a.media_album_name || "")}</div></div></div>` : ""}
         ${ok(s) ? `<div class="media-ctl">
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause">${icon(s.state === "playing" ? "pause" : "play")}</button>
