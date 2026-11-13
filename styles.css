@@ -419,19 +419,32 @@ button.bulb.na { opacity: 0.45; cursor: not-allowed; }
 /* Jarvis */
 .jarvis-fab {
   /* owner, 13 Nov: centred at the bottom and a little bigger */
-  position: fixed; z-index: 35; width: 76px; height: 76px; border-radius: 50%; border: 0; cursor: pointer;
+  position: fixed; z-index: 35; border-radius: 50%; border: 0; cursor: pointer;
   left: 50%; transform: translateX(-50%);
   bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 14px);
-  background: radial-gradient(circle at 35% 30%, #6ff3e8, var(--turq) 45%, #149e94);
-  color: var(--night); display: grid; place-items: center;
-  box-shadow: 0 0 0 6px rgba(46, 230, 214, 0.12), 0 14px 40px -8px rgba(46, 230, 214, 0.6);
+  /* owner, 14 Nov: holographic "JARVIS" HUD button — rotating rings, glowing core */
+  background: transparent; padding: 0; width: 92px; height: 92px;
+  display: grid; place-items: center;
+  filter: drop-shadow(0 0 14px rgba(70, 190, 255, 0.55)) drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
 }
-.jarvis-fab svg { width: 34px; height: 34px; }
+.jarvis-fab svg.hud { width: 100%; height: 100%; overflow: visible; }
+.jarvis-fab .jlabel { font-family: var(--font-display); font-weight: 700; font-size: 11.5px; letter-spacing: 1.6px; fill: #eaf8ff;
+  paint-order: stroke; stroke: rgba(95, 212, 255, 0.35); stroke-width: 0.6px; }
+.jarvis-fab .ring { transform-origin: 50px 50px; transform-box: view-box; }
+.jarvis-fab .r1 { animation: jspin 18s linear infinite; }
+.jarvis-fab .r2 { animation: jspin 26s linear infinite reverse; }
+.jarvis-fab .r3 { animation: jspin 11s linear infinite; }
+.jarvis-fab .spark { animation: jbreath 3.2s ease-in-out infinite; }
+.jarvis-fab:hover .r1, .jarvis-fab:focus-visible .r1 { animation-duration: 6s; }
+.jarvis-fab.listening .r1 { animation-duration: 2.5s; } .jarvis-fab.listening .r3 { animation-duration: 1.6s; }
+@keyframes jspin { to { transform: rotate(360deg); } }
+@keyframes jbreath { 0%, 100% { opacity: .12; } 50% { opacity: .32; } }
+@media (prefers-reduced-motion: reduce) { .jarvis-fab .ring, .jarvis-fab .spark { animation: none; } }
 .jarvis-fab:active { transform: translateX(-50%) scale(0.96); }
 @media (min-width: 900px) { .jarvis-fab { left: calc(50% + var(--rail) / 2); bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 22px)); } }
 /* room under the centred button so it never covers the last cards; messages sit above it */
-main { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 112px) !important; }
-@media (min-width: 900px) { main { padding-bottom: 120px !important; } }
+main { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 128px) !important; }
+@media (min-width: 900px) { main { padding-bottom: 136px !important; } }
 .toast { bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 104px) !important; }
 @media (min-width: 900px) { .toast { bottom: 116px !important; } }
 .jarvis { display: grid; gap: 14px; }
