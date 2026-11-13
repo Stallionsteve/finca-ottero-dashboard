@@ -418,15 +418,22 @@ button.bulb.na { opacity: 0.45; cursor: not-allowed; }
 
 /* Jarvis */
 .jarvis-fab {
-  position: fixed; z-index: 35; width: 64px; height: 64px; border-radius: 50%; border: 0; cursor: pointer;
-  right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px));
-  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 16px);
+  /* owner, 13 Nov: centred at the bottom and a little bigger */
+  position: fixed; z-index: 35; width: 76px; height: 76px; border-radius: 50%; border: 0; cursor: pointer;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 14px);
   background: radial-gradient(circle at 35% 30%, #6ff3e8, var(--turq) 45%, #149e94);
   color: var(--night); display: grid; place-items: center;
   box-shadow: 0 0 0 6px rgba(46, 230, 214, 0.12), 0 14px 40px -8px rgba(46, 230, 214, 0.6);
 }
-.jarvis-fab svg { width: 28px; height: 28px; }
-@media (min-width: 900px) { .jarvis-fab { bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 24px)); } }
+.jarvis-fab svg { width: 34px; height: 34px; }
+.jarvis-fab:active { transform: translateX(-50%) scale(0.96); }
+@media (min-width: 900px) { .jarvis-fab { left: calc(50% + var(--rail) / 2); bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 22px)); } }
+/* room under the centred button so it never covers the last cards; messages sit above it */
+main { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 112px) !important; }
+@media (min-width: 900px) { main { padding-bottom: 120px !important; } }
+.toast { bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 104px) !important; }
+@media (min-width: 900px) { .toast { bottom: 116px !important; } }
 .jarvis { display: grid; gap: 14px; }
 .jarvis-log { display: grid; gap: 10px; max-height: min(52vh, 520px); overflow-y: auto; padding-right: 4px; }
 .msg { max-width: 85%; padding: 12px 16px; border-radius: 18px; line-height: 1.45; }
