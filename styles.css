@@ -428,7 +428,7 @@ button.bulb.na { opacity: 0.45; cursor: not-allowed; }
   filter: drop-shadow(0 0 14px rgba(70, 190, 255, 0.55)) drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
 }
 .jarvis-fab svg.hud { width: 100%; height: 100%; overflow: visible; }
-.jarvis-fab .jlabel { font-family: var(--font-display); font-weight: 700; font-size: 11.5px; letter-spacing: 1.6px; fill: #eaf8ff;
+.jarvis-fab .jlabel { font-family: var(--font-display); font-weight: 700; font-size: 10.5px; letter-spacing: 1.3px; fill: #eaf8ff;
   paint-order: stroke; stroke: rgba(95, 212, 255, 0.35); stroke-width: 0.6px; }
 .jarvis-fab .ring { transform-origin: 50px 50px; transform-box: view-box; }
 .jarvis-fab .r1 { animation: jspin 18s linear infinite; }
@@ -524,3 +524,29 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 .act-chip b { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .act-chip small { color: var(--muted); font-size: 12px; }
 .act-chip.fresh { border-color: var(--coral); }
+
+/* ---------- HUD icon style (owner, 14 Nov): "Tony Stark" holographic look, in the app's sunset palette ----------
+   Round holo badges with a fine ring and a slowly turning tick ring, glowing line icons, lit-up nav. */
+.ico {
+  position: relative; border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--tint) 30%, transparent), color-mix(in srgb, var(--tint) 8%, transparent) 62%, transparent 72%);
+  border: 1px solid color-mix(in srgb, var(--tint) 55%, transparent);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--tint) 28%, transparent), 0 0 14px -4px var(--tint);
+}
+.ico::before {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  border: 1.5px dashed color-mix(in srgb, var(--tint) 45%, transparent);
+  -webkit-mask: conic-gradient(#000 0 70%, transparent 70% 78%, #000 78% 92%, transparent 92%); mask: conic-gradient(#000 0 70%, transparent 70% 78%, #000 78% 92%, transparent 92%);
+  animation: hudspin 24s linear infinite;
+}
+.ico svg { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--tint) 80%, transparent)); stroke-width: 1.6; }
+.tile.is-on .ico { background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--tint) 48%, transparent), color-mix(in srgb, var(--tint) 14%, transparent) 64%, transparent 74%); }
+.tile.is-on .ico::before { animation-duration: 8s; border-color: color-mix(in srgb, var(--tint) 75%, transparent); }
+.row .ico, .row .ico::before { border-radius: 50%; }
+.row .ico::before { inset: -4px; }
+.nav a svg { filter: drop-shadow(0 0 2px rgba(120, 210, 255, 0.35)); }
+.nav a[aria-current="page"] svg { filter: drop-shadow(0 0 6px var(--turq)); }
+.qbtn svg { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--sunset) 70%, transparent)); }
+@keyframes hudspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ico::before { animation: none; } }
+.big-ico { border-radius: 50% !important; }
