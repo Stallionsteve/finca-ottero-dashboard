@@ -1331,6 +1331,12 @@
     if (location.hash === "#more") return;
     closeLayer(); render(true);
   });
+  // Self-heal (14 Nov): a phone holding an old start page keeps loading old versions. If this page didn't come
+  // through the version.txt loader, fetch a fresh start page into the cache once and reload.
+  try { if (!/\(home\)/.test(window.FINCA_VERSION || "") && !sessionStorage.getItem("finca.healed") && /^https?:/.test(location.protocol)) {
+    sessionStorage.setItem("finca.healed", "1");
+    fetch("index.html", { cache: "reload" }).then(r => r.text()).then(t => { if (/version\.txt/.test(t)) { localStorage.removeItem("finca.sha"); location.reload(); } }).catch(() => {});
+  } } catch { /* storage unavailable */ }
   { const fab = $("#jarvis-fab"); if (fab && !fab.querySelector("svg.hud")) fab.innerHTML = `<svg class="hud" viewBox="0 0 100 100" aria-hidden="true">
   <defs>
     <radialGradient id="jcore" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#1b4fd8"/><stop offset=".55" stop-color="#0b1f6e"/><stop offset="1" stop-color="#040b2c"/></radialGradient>
