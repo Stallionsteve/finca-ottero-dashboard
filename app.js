@@ -572,26 +572,38 @@
     </article>`;
   }
   function viewSecurity() {
+    // owner, 13 Nov: cameras first; recent activity as a compact horizontal strip; door/window/motion sensors
+    // (Ring Alarm via Ring-MQTT) shown when they exist.
     const alarms = all("alarm_control_panel"), cams = all("camera");
+    const SENSOR_CLASSES = ["motion", "occupancy", "door", "window", "opening", "garage_door"];
+    const sensors = Object.values(store.states).filter(s => !isHidden(s) && domainOf(s.entity_id) === "binary_sensor" && SENSOR_CLASSES.includes(s.attributes.device_class)
+      && !/hue_motion|_light_sensor|_motion_sensor_enabled/.test(s.entity_id));
     const activity = Object.values(store.states)
-      .filter(s => !isHidden(s) && (domainOf(s.entity_id) === "event" || (domainOf(s.entity_id) === "binary_sensor" && ["motion", "occupancy", "door", "opening"].includes(s.attributes.device_class))))
-      .filter(s => /ring|doorbell|ding|motion/i.test(platformOf(s.entity_id) + nm(s)))
-      .sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed)).slice(0, 6);
+      .filter(s => !isHidden(s) && ok(s) && (domainOf(s.entity_id) === "event" || sensors.includes(s)))
+      .filter(s => domainOf(s.entity_id) !== "event" || /ring|doorbell|ding|motion/i.test(platformOf(s.entity_id) + nm(s)))
+      .filter(s => s.last_changed && !/^(unknown|unavailable)$/.test(s.state))
+      .sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed)).slice(0, 12);
+    const evLabel = s => domainOf(s.entity_id) === "event" ? nm(s).replace(/\s+(ding|motion)$/i, m => " · " + m.trim().toLowerCase())
+      : `${nm(s)} · ${["door", "window", "opening", "garage_door"].includes(s.attributes.device_class) ? (s.state === "on" ? "opened" : "closed") : (s.state === "on" ? "motion" : "clear")}`;
+    const doors = sensors.filter(s => ["door", "window", "opening", "garage_door"].includes(s.attributes.device_class));
+    const motions = sensors.filter(s => ["motion", "occupancy"].includes(s.attributes.device_class));
+    const sensorRow = s => { const open = s.state === "on", isDoor = doors.includes(s);
+      return `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ok(s) ? (isDoor ? (open ? "Open" : "Closed") : (open ? "Motion now" : "Clear")) + " · " + ago(s.last_changed) : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div>
+        <span class="pill ${open ? "warn" : "ok"}">${ok(s) ? (isDoor ? (open ? "Open" : "Closed") : (open ? "Motion" : "Clear")) : "Offline"}</span></div>`; };
     return `<section class="view">
       <div class="page-head"><div><h1>Security</h1><p>Ring cameras, doorbells and alarm</p></div></div>
-      <div class="grid g-2">
-        ${alarms.length ? alarms.map(a => `<article class="card"><div class="card-head">
+      ${cams.length ? `<div class="grid g-2">${cams.map(camCard).join("")}</div>` : '<p class="empty">No cameras found yet.</p>'}
+      ${activity.length ? `<h2 class="section">Recent activity</h2><div class="act-strip">${activity.map(s => `<span class="act-chip ${Date.now() - new Date(s.last_changed) < 15 * 60000 ? "fresh" : ""}"><b>${esc(evLabel(s))}</b><small>${ago(s.last_changed)}</small></span>`).join("")}</div>` : ""}
+      ${alarms.length || doors.length || motions.length ? `<h2 class="section">Alarm and sensors</h2><div class="grid g-2">
+        ${alarms.map(a => `<article class="card"><div class="card-head">
             <span class="ico" style="width:58px;height:58px">${icon("shield")}</span>
             <div class="grow"><h3>${esc(nm(a))}</h3><div class="row-sub">Status only · changed ${ago(a.last_changed)}</div></div>
             <span class="pill ${a.state === "disarmed" ? "ok" : "warn"}">${esc(alarmLabel(a))}</span></div>
-          <p class="note">${icon("lock")}<span>Arm and disarm with the Ring app or keypad. This app never changes the alarm.</span></p></article>`).join("")
-          : ""}
-        ${activity.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>Recent activity</h3></div></div>
-          ${activity.map(s => `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ago(s.last_changed)}</div></div></div>`).join("")}</article>` : ""}
-      </div>
+          <p class="note">${icon("lock")}<span>Arm and disarm with the Ring app or keypad. This app never changes the alarm.</span></p></article>`).join("")}
+        ${doors.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("lock")}</span><div class="grow"><h3>Doors and windows</h3><div class="row-sub">${doors.filter(s => s.state === "on").length} open</div></div></div>${doors.map(sensorRow).join("")}</article>` : ""}
+        ${motions.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>Motion sensors</h3></div></div>${motions.map(sensorRow).join("")}</article>` : ""}
+      </div>` : ""}
       ${intruderCard()}
-      <h2 class="section">Cameras</h2>
-      ${cams.length ? `<div class="grid g-2">${cams.map(camCard).join("")}</div>` : '<p class="empty">No cameras found yet.</p>'}
       <p class="note">${icon("info")}<span>Snapshots show each camera's latest event; Live view streams now; Last recording plays the newest Ring Protect clip. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p>
     </section>`;
   }

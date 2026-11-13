@@ -504,3 +504,10 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 .qbtn:active { transform: scale(0.98); }
 .quick .qbtn:nth-child(n+3) { display: none; }
 @media (min-width: 700px) { .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); } .quick .qbtn:nth-child(n+3) { display: grid; } .qbtn { min-height: 140px; } .qbtn b { font-size: 20px; } }
+
+/* Security: recent activity as a horizontal strip */
+.act-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.act-chip { flex: 0 0 auto; scroll-snap-align: start; display: grid; gap: 2px; padding: 10px 14px; border-radius: 14px; background: var(--night-2); border: 1px solid var(--line); min-width: 150px; }
+.act-chip b { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.act-chip small { color: var(--muted); font-size: 12px; }
+.act-chip.fresh { border-color: var(--coral); }
