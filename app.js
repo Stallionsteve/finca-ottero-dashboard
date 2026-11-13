@@ -1033,6 +1033,12 @@
         <article class="card"><div class="card-head"><span class="ico">${icon("wifi")}</span><div class="grow"><h3>Offline or unplugged</h3><div class="row-sub">Sensors, cameras, alarm and lights</div></div></div>
           ${h.offline.length ? h.offline.map(o => row(o.name, `${esc(o.area || "")}${o.area ? " · " : ""}since ${ago(o.since)}`, "Offline", true)).join("") : '<p class="note">Everything is online.</p>'}</article>
       </div>
+      ${(() => { const ctl = Object.values(store.ents).filter(e => e.platform === "victron_gx" && /^(switch|number|select|button)\./.test(e.entity_id));
+        if (!ctl.length) return "";
+        const locked = mem.get("victron.locked", false);
+        return `<article class="card" style="margin-top:16px"><div class="card-head"><span class="ico">${icon("lock")}</span><div class="grow"><h3>Solar room: read-only for Jarvis</h3>
+          <div class="row-sub">${ctl.length} Victron controls · Jarvis can read every reading but not change settings</div></div>
+          <button class="btn btn-sm ${locked ? "" : "btn-primary"}" data-action="victron-lock">${locked ? "Lock again" : "Lock now"}</button></div></article>`; })()}
       <h2 class="section">All batteries</h2>
       <div class="card">${h.batteries.map(b => row(b.name, esc(b.area || ""), b.v === null ? "No reading" : `${Math.round(b.v)}%`, b.v === null || b.v <= 25)).join("")}</div>
       <p class="note">${icon("info")}<span>Pool, jacuzzi, water heater and TVs aren't listed: they're often switched off at the wall on purpose.</span></p>
@@ -1273,6 +1279,14 @@
     else if (a === "scan") scanDevices(true);
     else if (a === "all-off") allOffSheet();
     else if (a === "all-off-go") { closeLayer(); svc("light", "turn_off", {}, { entity_id: realLights().filter(s => s.state === "on").map(s => s.entity_id) }); }
+    else if (a === "victron-lock") {
+      // hide every Victron control (switch/number/select/button) from Assist so Jarvis can't change them; sensors stay visible
+      const ids = Object.values(store.ents).filter(e => e.platform === "victron_gx" && /^(switch|number|select|button)\./.test(e.entity_id)).map(e => e.entity_id);
+      if (store.mode === "demo") { toast("Demo only."); return; }
+      store.conn.sendMessagePromise({ type: "homeassistant/expose_entity", assistants: ["conversation"], entity_ids: ids, should_expose: false })
+        .then(() => { mem.set("victron.locked", true); toast(`Done: ${ids.length} solar room controls hidden from Jarvis.`); lastHtml = ""; render(false); })
+        .catch(e => toast(`Home Assistant refused that: ${e.message || e.code}`));
+    }
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
     else if (a === "close-nav") closeLayer();
     else if (a === "close") { if (ev.target === t || t.tagName === "BUTTON") { closeLayer(); if (location.hash === "#jarvis") history.replaceState(null, "", "#home"); renderNav(current()); } }
