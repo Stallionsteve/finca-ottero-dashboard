@@ -764,6 +764,22 @@
     </section>`;
   }
 
+  // Music search (14 Nov): type an artist/song/playlist, pick a speaker, play from Spotify via Music Assistant.
+  function musicSearch() {
+    const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s)));
+    if (!ma.length && store.mode !== "demo") return "";
+    const last = mem.get("music.speaker", "media_player.tv_room");
+    const names = { "media_player.tv_room": "Living room (Arc)" };
+    return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
+      <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
+        <input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Music to play" autocomplete="off" enterkeyhint="go" style="flex:1 1 260px">
+        <select class="sel" id="music-where" aria-label="Speaker" style="flex:0 1 200px">
+          ${ma.map(s => `<option value="${s.entity_id}" ${s.entity_id === last ? "selected" : ""}>${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, ""))}</option>`).join("")}
+        </select>
+        <button class="btn btn-primary" type="submit">${icon("music")}Play</button>
+      </form>
+    </article>`;
+  }
   function viewMedia() {
     const players = all("media_player").filter(s => !["alexa_devices", "alexa_media", "mobile_app"].includes(platformOf(s.entity_id)) && !/^this device$/i.test(nm(s))).sort((a, b) => (platformOf(b.entity_id) === "sonos") - (platformOf(a.entity_id) === "sonos") || nm(a).localeCompare(nm(b)));
     const card = s => {
@@ -785,6 +801,7 @@
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}
         ${(() => { const r = st("switch.finca_romantic_mode"); if (!r) return ""; const on = r.state === "on";
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${r.entity_id}">${icon("heart")}${on ? "End romantic mode" : "Romantic mode"}</button>`; })()}</div>
+      ${musicSearch()}
       ${players.length ? `<div class="grid g-2">${players.map(card).join("")}</div>` : '<p class="empty">No speakers found.</p>'}
     </section>`;
   }
@@ -1222,6 +1239,15 @@
   document.addEventListener("submit", ev => {
     const f = ev.target.closest("[data-rename]");
     if (f) { ev.preventDefault(); const v = f.querySelector("input").value.trim(); if (v) updateDevice(f.dataset.rename, { name_by_user: v }, `Renamed to ${v}`); return; }
+  });
+  document.addEventListener("submit", ev => {
+    if (ev.target.id !== "music-search") return;
+    ev.preventDefault();
+    const q = $("#music-q").value.trim(), where = $("#music-where").value; if (!q) return;
+    mem.set("music.speaker", where);
+    svc("music_assistant", "play_media", { media_id: q, enqueue: "replace", radio_mode: true }, { entity_id: where })
+      .then(() => { toast(`Playing ${q}`); $("#music-q").value = ""; })
+      .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
   });
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
