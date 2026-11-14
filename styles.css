@@ -591,3 +591,4 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 .fc-n small { font-size: .9rem; color: var(--muted); }
 .fav-pick { display: flex; gap: 10px; margin-top: 14px; }
 .fav-pick .sel { flex: 1; min-width: 0; }
+.head-btns { display: flex; gap: 10px; flex-wrap: wrap; margin: -6px 0 16px; } .head-btns .btn { flex: 1 1 160px; justify-content: center; }

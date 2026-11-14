@@ -945,7 +945,8 @@
       </article>`;
     };
     return `<section class="view">
-      <div class="page-head"><div><h1>Music</h1><p>Sonos and speakers</p></div>
+      <div class="page-head"><div><h1>Music</h1><p>Sonos and speakers</p></div></div>
+      <div class="head-btns">
         ${(() => { const p = st("switch.finca_party_mode"); if (!p) return ""; const on = p.state === "on";
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}
         ${(() => { const r = st("switch.finca_romantic_mode"); if (!r) return ""; const on = r.state === "on";
