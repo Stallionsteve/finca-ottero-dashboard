@@ -779,3 +779,7 @@ h2.section::after { content: ""; flex: 1; height: 1px; background: linear-gradie
 @media (prefers-reduced-motion: reduce) { .gauge .g-ticks { animation: none; } }
 /* Background fix (15 Nov): the page colour lives on <html> only, so the sky/holographic layer (body::after) isn't painted over. */
 body { background: transparent; }
+/* busier background (15 Nov): radar sweep on the big ring cluster, faster pulses */
+#hud-bg .sweep path { fill: url(#none); fill: rgba(46, 230, 214, .07); }
+#hud-bg .sweep { transform-box: view-box; transform-origin: 360px 760px; animation: hudspin 8s linear infinite; }
+#hud-bg .pk { animation-duration: 7s; } #hud-bg .pk.b { animation-duration: 10s; } #hud-bg .pk.c { animation-duration: 8.5s; }

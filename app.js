@@ -1794,13 +1794,17 @@
   (function hudBackground() {
     if (document.getElementById("hud-bg")) return;
     const el = document.createElement("div"); el.id = "hud-bg"; el.setAttribute("aria-hidden", "true");
-    const lines = ["M-20 210 H120 L170 260 H300", "M420 520 H330 L290 480 H180 L140 520 H-20", "M60 -20 V90 L110 140 V330", "M300 880 V760 L340 720 V600 L380 560 H460", "M-20 690 H70 L110 650 H210"];
+    const lines = ["M-20 210 H120 L170 260 H300", "M420 520 H330 L290 480 H180 L140 520 H-20", "M60 -20 V90 L110 140 V330", "M300 880 V760 L340 720 V600 L380 560 H460", "M-20 690 H70 L110 650 H210",
+      "M420 150 H330 L300 120 H230", "M200 -20 V40 L240 80 H420", "M-20 400 H40 L80 360 V300", "M150 880 V800 L190 760 H260", "M420 330 H360 L330 360 V430"];
     el.innerHTML = `<svg viewBox="0 0 400 860" preserveAspectRatio="xMidYMid slice">
       <g><circle class="rg r1" cx="360" cy="760" r="170"/><circle class="rg r2" cx="360" cy="760" r="130"/><circle class="rg r3" cx="360" cy="760" r="95"/><circle class="rg r4" cx="360" cy="760" r="60"/></g>
       <g><circle class="rg r3" cx="30" cy="120" r="90"/><circle class="rg r1" cx="30" cy="120" r="64"/><circle class="rg r4" cx="30" cy="120" r="40"/></g>
+      <g><circle class="rg r1" cx="395" cy="300" r="58"/><circle class="rg r4" cx="395" cy="300" r="38"/><circle class="rg r3" cx="395" cy="300" r="24"/></g>
+      <g class="sweep"><path d="M360 760 L360 600 A160 160 0 0 1 498 680 Z"/></g>
       ${lines.map(d => `<path class="ln" d="${d}"/>`).join("")}
-      ${lines.map((d, i) => `<path class="pk ${["", "b", "c", "", "b"][i]}" style="animation-delay:${-i * 2.3}s" d="${d}"/>`).join("")}
-      ${[[120, 210], [170, 260], [290, 480], [180, 480], [110, 140], [340, 720], [380, 560], [110, 650]].map(([x, y]) => `<circle class="nd" cx="${x}" cy="${y}" r="2.6"/>`).join("")}
+      ${lines.map((d, i) => `<path class="pk ${["", "b", "c", "", "b", "c", "", "b", "c", ""][i]}" style="animation-delay:${-i * 1.7}s" d="${d}"/>`).join("")}
+      ${lines.slice(0, 6).map((d, i) => `<path class="pk c" style="animation-delay:${-i * 3.1 - 5}s" d="${d}"/>`).join("")}
+      ${[[120, 210], [170, 260], [290, 480], [180, 480], [110, 140], [340, 720], [380, 560], [110, 650], [300, 120], [240, 80], [80, 360], [190, 760], [330, 360]].map(([x, y]) => `<circle class="nd" cx="${x}" cy="${y}" r="2.6"/>`).join("")}
     </svg>`;
     document.body.prepend(el);
   })();
