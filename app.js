@@ -562,7 +562,12 @@
       && (s.entity_id === "switch.ensuite_lights" || C.lightingSwitches.some(r => r.test(nm(s)))));
     const swName = s => s.entity_id === "switch.ensuite_lights" ? "Ensuite lights" : nm(s).replace(/\s+/g, " ").replace(/^(.+?) \1$/i, "$1").trim();
     const swArea = s => s.entity_id === "switch.ensuite_lights" ? "Master bedroom" : (areaOf(s.entity_id) || "");
-    const sensors = all("binary_sensor").filter(s => ["motion", "occupancy"].includes(s.attributes.device_class) && /hue|motion/i.test(nm(s) + platformOf(s.entity_id)));
+    // Hue motion sensors only (Ring ones live on Security). Hue also makes a "room" copy of each sensor (Living room Motion,
+    // Bar Motion…): those duplicates are left out.
+    const hueRoom = s => { const e = store.ents[s.entity_id], d = e && store.devices[e.device_id]; return (d && d.model === "Room") || /^binary_sensor\.(\w+)_\1_motion$/.test(s.entity_id); };
+    const sensors = all("binary_sensor").filter(s => ["motion", "occupancy"].includes(s.attributes.device_class)
+      && (store.mode === "demo" ? /hue|motion/i.test(nm(s)) : platformOf(s.entity_id) === "hue") && !hueRoom(s));
+    const sensorName = s => nm(s).replace(/\s+motion$/i, "").replace(/^living room temperature\s*$/i, "Living room sensor").trim();
     const lightsOn = realLights().filter(s => s.state === "on").length;
     return `<section class="view">
       <div class="page-head">
@@ -580,9 +585,9 @@
           <div class="row-body"><div class="row-title">${esc(swName(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "On" : "Off") : "Offline"}${swArea(s) ? " · " + esc(swArea(s)) : ""}</div></div>
           ${ok(s) ? sw(s.entity_id, s.state === "on", swName(s), "sunset") : '<span class="pill warn">Offline</span>'}</div>`).join("")}
       </div>` : ""}
-      ${sensors.length ? `<h2 class="section">Motion sensors</h2><div class="grid g-2">
+      ${sensors.length ? `<h2 class="section">Hue motion sensors</h2><div class="grid g-2">
         ${sensors.map(s => `<div class="card"><div class="row" style="padding:0"><span class="ico">${icon("sensor")}</span>
-          <div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "Motion now" : "Last motion " + ago(s.last_changed)) : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div></div></div>`).join("")}
+          <div class="row-body"><div class="row-title">${esc(sensorName(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "Motion now" : "Last motion " + ago(s.last_changed)) : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div></div></div>`).join("")}
       </div>` : ""}
     </section>`;
   }
@@ -711,7 +716,7 @@
     const evLabel = s => domainOf(s.entity_id) === "event" ? nm(s).replace(/\s+(ding|motion)$/i, m => " · " + m.trim().toLowerCase())
       : `${nm(s)} · ${["door", "window", "opening", "garage_door"].includes(s.attributes.device_class) ? (s.state === "on" ? "opened" : "closed") : (s.state === "on" ? "motion" : "clear")}`;
     const doors = sensors.filter(s => ["door", "window", "opening", "garage_door"].includes(s.attributes.device_class));
-    const motions = sensors.filter(s => ["motion", "occupancy"].includes(s.attributes.device_class));
+    const motions = sensors.filter(s => ["motion", "occupancy"].includes(s.attributes.device_class) && !/_ding$/.test(s.entity_id));   // doorbell presses show in Recent activity, not as motion sensors
     const sensorRow = s => { const open = s.state === "on", isDoor = doors.includes(s);
       return `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ok(s) ? (isDoor ? (open ? "Open" : "Closed") : (open ? "Motion now" : "Clear")) + " · " + ago(s.last_changed) : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div>
         <span class="pill ${open ? "warn" : "ok"}">${ok(s) ? (isDoor ? (open ? "Open" : "Closed") : (open ? "Motion" : "Clear")) : "Offline"}</span></div>`; };
