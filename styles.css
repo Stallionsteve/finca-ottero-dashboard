@@ -835,3 +835,12 @@ body { background: transparent; }
 }
 @media (min-width: 900px) { .hero::after { right: auto; left: -60px; width: 440px; height: 440px; bottom: -300px; } }
 @media (min-width: 900px) { .hero::after { left: -110px; width: 360px; height: 360px; bottom: -230px; } }
+/* Tablet weather (15 Nov): one slim, long bar instead of a tall box */
+@media (min-width: 900px) {
+  .wx-btn { display: flex; align-items: center; gap: 14px; padding: 8px 16px; text-align: left; max-width: 520px; }
+  .wx-btn b { font-size: 26px; }
+  .wx-emoji { font-size: 22px; }
+  .wx-btn .wx-sub { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .wx-btn .wx-more { margin: 0; white-space: nowrap; flex: none; }
+}
+@media (min-width: 900px) { .hero > .hud-gauges { margin-top: 0; margin-left: 18%; } }
