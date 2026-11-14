@@ -116,6 +116,7 @@
     shuffle: '<path d="M3 7h3.5c2 0 3.3 1 4.5 2.7l2 3c1.2 1.8 2.5 2.8 4.5 2.8H21M18.5 13 21 15.5 18.5 18M3 16.5h3.5c1.4 0 2.4-.5 3.3-1.4M14.2 8.2c.9-.8 1.9-1.2 3.3-1.2H21M18.5 4.5 21 7l-2.5 2.5"/>',
     repeat: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
     repeat1: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M11.5 10.5 13 9.5v5"/>',
+    share: '<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -1267,7 +1268,14 @@
 
   function moreSheet() {
     sheet(`<h2>More</h2><div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-nav">${icon(n.icon)}${n.label}</a>`).join("")}</div>
+      <div class="share-box"><div><b>Share the app</b><small>${esc(SHARE_URL)}<br>Works on the home Wi-Fi. Each person signs in with their own Home Assistant login.</small></div>
+        <button class="btn btn-primary" data-action="share-app">${icon("share")}Share</button></div>
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`);
+  }
+  const SHARE_URL = "https://fincaottero.duckdns.org/local/finca-ottero/index.html";
+  async function shareApp() {
+    try { if (navigator.share) { await navigator.share({ title: "Finca Ottero", text: "Finca Ottero home app (home Wi-Fi). Open it, sign in, then Add to Home Screen.", url: SHARE_URL }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(SHARE_URL); toast("Link copied. Paste it into a message."); } catch { toast(SHARE_URL); }
   }
 
   // ---------- Jarvis ----------
@@ -1512,6 +1520,7 @@
         .catch(e => toast(`Home Assistant refused that: ${e.message || e.code}`));
     }
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
+    else if (a === "share-app") { ev.preventDefault(); shareApp(); }
     else if (a === "close-nav") closeLayer();
     else if (a === "close") { if (ev.target === t || t.tagName === "BUTTON") { closeLayer(); if (location.hash === "#jarvis") history.replaceState(null, "", "#home"); renderNav(current()); } }
   });
