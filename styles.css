@@ -659,3 +659,23 @@ details.how > .note { margin-top: 8px; }
 .ms-row[aria-selected="true"] .ms-ck { opacity: 1; }
 .ms-play { display: flex; align-items: center; gap: 12px; flex: 1 1 100%; min-width: 0; }
 .ms-play .row-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Your Spotify row + player modes (14 Nov) */
+.lib-head { flex: 1 1 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.lib-head span { font-weight: 600; } .lib-head small { color: var(--muted); font-size: 12px; }
+.lib-row { flex: 1 1 100%; display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; padding: 2px 2px 8px; margin: 0 -2px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.lib-row::-webkit-scrollbar { display: none; }
+.lib-card { flex: none; width: 112px; display: grid; gap: 6px; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; scroll-snap-align: start; }
+.lib-art { position: relative; width: 112px; height: 112px; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
+  background: var(--glass); border: 2px solid transparent; transition: border-color .15s, transform .15s; }
+.lib-art img { width: 100%; height: 100%; object-fit: cover; }
+.lib-card.liked .lib-art { background: linear-gradient(135deg, #4a2ad8, #9fd3c7); }
+.lib-card.liked .lib-art > svg { width: 44px; height: 44px; color: #fff; fill: #fff; }
+.lib-art .ms-ck { position: absolute; top: 6px; right: 6px; }
+.lib-card[aria-selected="true"] .lib-art { border-color: var(--turq); transform: scale(.97); }
+.lib-card[aria-selected="true"] .ms-ck { opacity: 1; }
+.lib-name { font-size: 13px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.np-ctl .np-mode { width: 40px; height: 40px; opacity: .65; }
+.np-ctl .np-mode svg { width: 18px; height: 18px; }
+.np-ctl .np-mode[aria-pressed="true"] { opacity: 1; color: var(--turq); border-color: color-mix(in srgb, var(--turq) 50%, transparent); }

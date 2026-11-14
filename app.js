@@ -113,6 +113,9 @@
     plane: '<path d="M10.5 21l2-7-6 0-2 3-2-1 1.5-4L2.5 8l2-1 2 3h6l-2-7 2.5 0 4.5 7h4a1.5 1.5 0 0 1 0 3h-4l-4.5 7z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16 16"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    shuffle: '<path d="M3 7h3.5c2 0 3.3 1 4.5 2.7l2 3c1.2 1.8 2.5 2.8 4.5 2.8H21M18.5 13 21 15.5 18.5 18M3 16.5h3.5c1.4 0 2.4-.5 3.3-1.4M14.2 8.2c.9-.8 1.9-1.2 3.3-1.2H21M18.5 4.5 21 7l-2.5 2.5"/>',
+    repeat: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
+    repeat1: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M11.5 10.5 13 9.5v5"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -860,6 +863,34 @@
   // Search results (14 Nov): one search per Enter/Search tap (not per letter: keeps Spotify's rate limit happy),
   // a compact list with covers; tap one to select it, then Play.
   const ms = { q: "", res: null, sel: null, busy: false, entry: null, err: "" };
+  // Your Spotify (14 Nov): Liked Songs + saved playlists from Music Assistant's library copy (local, no Spotify requests).
+  const lib = { at: 0, items: null, busy: false };
+  const GENERATED = /\(from library\)|^infinite mix|^all favorited|^recently (added|played)/i;
+  async function loadLibrary() {
+    if (lib.busy || Date.now() - lib.at < 15 * 60000) return;
+    lib.busy = true;
+    try {
+      if (store.mode === "demo") lib.items = ["Liked Songs", "Chilled soul", "IBIZA Summer Mix", "Cali Reggae", "80s Mix"].map((n, i) => ({ name: n, uri: "demo://pl" + i, image: "" }));
+      else {
+        if (!ms.entry) { const e = await store.conn.sendMessagePromise({ type: "config_entries/get", domain: "music_assistant" }); ms.entry = (e.find(x => x.state === "loaded") || e[0] || {}).entry_id; }
+        const r = await store.conn.sendMessagePromise({ type: "call_service", domain: "music_assistant", service: "get_library",
+          service_data: { config_entry_id: ms.entry, media_type: "playlist", limit: 200 }, return_response: true });
+        lib.items = ((r.response || {}).items || []).filter(x => !GENERATED.test(x.name));
+      }
+      lib.items.sort((a, b) => (/^liked songs/i.test(b.name) - /^liked songs/i.test(a.name)));
+      lib.at = Date.now(); lastHtml = ""; render(false);
+    } catch { lib.at = Date.now() - 13 * 60000; } finally { lib.busy = false; }
+  }
+  function libraryRow() {
+    loadLibrary();
+    if (!lib.items || !lib.items.length) return "";
+    ms.libRows = lib.items.map(x => ({ ...x, kind: "Playlist" }));
+    return `<div class="lib-head"><span>Your Spotify</span><small>${lib.items.length} playlists · tap one, then Play</small></div>
+      <div class="lib-row" role="listbox" aria-label="Your playlists">${ms.libRows.map((x, i) => { const liked = /^liked songs/i.test(x.name);
+        return `<button type="button" class="lib-card ${liked ? "liked" : ""}" role="option" data-libi="${i}" aria-selected="${!!ms.sel && ms.sel.uri === x.uri}">
+          <span class="lib-art">${liked ? icon("heart") : `<img src="${esc(x.image || FALLBACK_ART)}" alt="" loading="lazy">`}<span class="ms-ck" aria-hidden="true">${icon("check")}</span></span>
+          <span class="lib-name">${esc(liked ? "Liked Songs" : x.name.trim())}</span></button>`; }).join("")}</div>`;
+  }
   function msResults() {
     if (ms.err) return `<p class="row-sub ms-msg">${esc(ms.err)}</p>`;
     if (!ms.res) return "";
@@ -907,12 +938,13 @@
         <div class="ms-bar"><input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Search Spotify" autocomplete="off" enterkeyhint="search" value="${esc(ms.q)}">
           <button class="btn" type="submit" aria-label="Search">${ms.busy ? '<span class="spin" aria-hidden="true"></span>' : icon("search")}</button></div>
         ${msResults()}
+        ${libraryRow()}
         <div class="seg-row" id="music-where" role="group" aria-label="Speakers (pick one or more)" style="flex:1 1 100%;flex-wrap:wrap">
           ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
           <button type="button" class="seg-btn" data-spk-all="1">All speakers</button>
         </div>
         <div class="ms-play"><button class="btn btn-primary" type="button" data-msplay="1">${icon("music")}Play</button>
-          <span class="row-sub">${ms.sel ? `Selected: <b style="color:var(--sand)">${esc(ms.sel.name)}</b>` : ms.q ? `Plays “${esc(ms.q)}”` : "Search, pick a result, choose speakers, play"}</span></div>
+          <span class="row-sub">${ms.sel ? `Selected: <b style="color:var(--sand)">${esc(/^liked songs/i.test(ms.sel.name) ? "Liked Songs (shuffled)" : ms.sel.name.trim())}</b>` : ms.q ? `Plays “${esc(ms.q)}”` : "Search, pick a result, choose speakers, play"}</span></div>
       </form>
       ${(() => { const fav = sonosFavs(); if (!fav.length) return "";
         const isRadio = f => /radio|bbc|1xtra|wfmu|\bfm\b|talk|capital|heart|smooth|apple music 1/i.test(f);
@@ -929,7 +961,7 @@
   const FALLBACK_ART = "icon-dome-512.png";
   document.addEventListener("error", ev => {
     const i = ev.target;
-    if (i.tagName === "IMG" && i.closest(".np-art, .np, .ms-res") && !i.dataset.fb) { i.dataset.fb = "1"; i.classList.add("fallback"); i.src = FALLBACK_ART; }
+    if (i.tagName === "IMG" && i.closest(".np-art, .np, .ms-res, .lib-row") && !i.dataset.fb) { i.dataset.fb = "1"; i.classList.add("fallback"); i.src = FALLBACK_ART; }
   }, true);
   const artUrl = p => !p ? "" : /^https?:/.test(p) ? p : store.hassUrl + p;
   const fmtDur = x => { x = Math.max(0, Math.floor(x || 0)); return `${Math.floor(x / 60)}:${pad(x % 60)}`; };
@@ -960,9 +992,11 @@
           <input type="range" id="np-seek" min="0" max="${Math.round(dur)}" step="1" value="${Math.round(pos)}" style="--val:${pct}%" data-seek="${s.entity_id}" data-dur="${dur}" aria-label="Song position">
           <span>${fmtDur(dur)}</span></div>` : ""}
         <div class="media-ctl np-ctl">
+          <button class="round-btn np-mode" data-shuffle="${s.entity_id}" aria-pressed="${!!a.shuffle}" aria-label="Shuffle">${icon("shuffle")}</button>
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_previous_track" aria-label="Previous track">${icon("prev")}</button>
           <button class="round-btn np-main" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause">${icon(playing ? "pause" : "play")}</button>
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_next_track" aria-label="Next track">${icon("next")}</button>
+          <button class="round-btn np-mode" data-repeat="${s.entity_id}" data-now="${esc(a.repeat || "off")}" aria-pressed="${(a.repeat || "off") !== "off"}" aria-label="Repeat: ${esc(a.repeat || "off")}">${icon(a.repeat === "one" ? "repeat1" : "repeat")}</button>
           ${a.volume_level !== undefined ? `<input type="range" min="0" max="100" value="${vol}" style="--val:${vol}%" data-vol="${s.entity_id}" aria-label="Volume">` : ""}
         </div>
       </div>
@@ -1406,7 +1440,7 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-shuffle],[data-repeat],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
     if (!t) return;
     const d = t.dataset;
     try { recordUse(usageKey(d, t)); } catch { /* never block the button */ }
@@ -1449,6 +1483,8 @@
       return;
     }
     if (d.media) { svc("media_player", d.cmd, {}, { entity_id: d.media }); return; }
+    if (d.shuffle) { svc("media_player", "shuffle_set", { shuffle: t.getAttribute("aria-pressed") !== "true" }, { entity_id: d.shuffle }); return; }
+    if (d.repeat) { const nx = { off: "all", all: "one", one: "off" }[d.now] || "all"; svc("media_player", "repeat_set", { repeat: nx }, { entity_id: d.repeat }).then(() => toast(nx === "off" ? "Repeat off" : nx === "one" ? "Repeat this song" : "Repeat all")); return; }
     if (d.live) { liveView(d.live); return; }
     if (d.clip) { clipView(d.clip); return; }
     if (d.colour) { colourSheet(d.colour); return; }
@@ -1496,6 +1532,8 @@
     const q = $("#music-q").value.trim(); $("#music-q").blur(); msSearch(q);
   });
   document.addEventListener("click", ev => {
+    const lb = ev.target.closest("[data-libi]");
+    if (lb) { const x = (ms.libRows || [])[+lb.dataset.libi]; if (!x) return; ms.sel = ms.sel && ms.sel.uri === x.uri ? null : x; lastHtml = ""; render(false); return; }
     const r = ev.target.closest("[data-msi]");
     if (r) { const x = (ms.rows || [])[+r.dataset.msi]; if (!x) return; ms.sel = ms.sel && ms.sel.uri === x.uri ? null : x; lastHtml = ""; render(false); return; }
     if (!ev.target.closest("[data-msplay]")) return;
@@ -1516,6 +1554,7 @@
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
     group.then(() => svc("music_assistant", "play_media", data, { entity_id: targets }))
+      .then(() => pick && /^liked songs/i.test(pick.name) ? svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: targets[0] }).catch(() => null) : null)
       .then(() => { toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
       .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
   });
