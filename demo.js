@@ -60,7 +60,7 @@ window.FincaDemo = (() => {
     ent("binary_sensor.hue_motion_sensor_1", "off", { friendly_name: "Hue Motion Sensor 1", device_class: "motion" }, { platform: "hue", changed: minsAgo(70), area: "hall" });
 
     const mp = (id, name, area, state, extra = {}) => ent(id, state, { friendly_name: name, volume_level: 0.3, ...extra }, { area, platform: "sonos" });
-    mp("media_player.living_room", "Living Room", "living", "playing", { media_title: "Miami Disco", media_artist: "Sunset Radio" });
+    mp("media_player.living_room", "Living Room", "living", "playing", { media_title: "Miami Disco", media_artist: "Sunset Radio", media_album_name: "Costa Nights", media_duration: 245, media_position: 62, media_position_updated_at: new Date().toISOString(), volume_level: 0.3, entity_picture: "icon-512.png" });
     mp("media_player.terrace", "Terrace", "terrace", "paused");
     mp("media_player.master_bedroom", "Master Bedroom", "master", "idle");
     ent("script.finca_ac_command", "off", { friendly_name: "Finca: air conditioning via Alexa" }, { platform: "script" });

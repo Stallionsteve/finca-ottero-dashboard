@@ -113,6 +113,7 @@
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
     next: '<path d="M5 5v14l10-7zM18.5 5v14"/>',
+    prev: '<path d="M19 5v14L9 12zM5.5 5v14"/>',
     mic: '<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5"/>',
     send: '<path d="M4 12 20 4l-4 16-4-7z"/><path d="m12 13 8-9"/>',
     more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
@@ -792,6 +793,44 @@
       </form>
     </article>`;
   }
+  // Now playing (14 Nov): big cover art, title, a progress bar you can drag to skip along, back / play-pause / next.
+  const artUrl = p => !p ? "" : /^https?:/.test(p) ? p : store.hassUrl + p;
+  const fmtDur = x => { x = Math.max(0, Math.floor(x || 0)); return `${Math.floor(x / 60)}:${pad(x % 60)}`; };
+  function npPos(a, playing) {
+    let pos = a.media_position || 0;
+    if (playing && a.media_position_updated_at) pos += (Date.now() - Date.parse(a.media_position_updated_at)) / 1000;
+    return Math.min(pos, a.media_duration || pos);
+  }
+  function nowPlaying() {
+    // Sonos players first (they carry the position), Music Assistant copies as a fallback; one per group (the leader).
+    const cands = all("media_player").filter(s => (store.mode === "demo" || ["sonos", "music_assistant"].includes(platformOf(s.entity_id))) && ok(s)
+      && ["playing", "paused"].includes(s.state) && s.attributes.media_title
+      && !((s.attributes.group_members || [])[0] && s.attributes.group_members[0] !== s.entity_id));
+    const rank = s => (s.state === "playing" ? 0 : 2) + (platformOf(s.entity_id) === "sonos" ? 0 : 1);
+    const s = cands.sort((a, b) => rank(a) - rank(b) || Date.parse(b.last_changed) - Date.parse(a.last_changed))[0];
+    if (!s) return "";
+    const a = s.attributes, playing = s.state === "playing", dur = a.media_duration || 0;
+    const pos = npPos(a, playing), pct = dur ? (pos / dur) * 100 : 0;
+    const where = (a.group_members || []).length > 1 ? `${nm(s)} + ${a.group_members.length - 1} more` : nm(s);
+    const vol = Math.round((a.volume_level || 0) * 100);
+    return `<article class="card nowplay" style="--tint:var(--coral);margin-bottom:16px">
+      <div class="np-art">${a.entity_picture ? `<img src="${esc(artUrl(a.entity_picture))}" alt="">` : icon("music")}</div>
+      <div class="np-body">
+        <div class="row-sub">${playing ? "Now playing" : "Paused"} · ${esc(where.replace(/ - Sonos.*$/, ""))}</div>
+        <h2 class="np-title">${esc(a.media_title)}</h2>
+        <div class="row-sub np-artist">${esc([a.media_artist, a.media_album_name].filter(Boolean).join(" · ") || a.media_channel || "")}</div>
+        ${dur ? `<div class="np-prog"><span id="np-cur">${fmtDur(pos)}</span>
+          <input type="range" id="np-seek" min="0" max="${Math.round(dur)}" step="1" value="${Math.round(pos)}" style="--val:${pct}%" data-seek="${s.entity_id}" data-dur="${dur}" aria-label="Song position">
+          <span>${fmtDur(dur)}</span></div>` : ""}
+        <div class="media-ctl np-ctl">
+          <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_previous_track" aria-label="Previous track">${icon("prev")}</button>
+          <button class="round-btn np-main" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause">${icon(playing ? "pause" : "play")}</button>
+          <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_next_track" aria-label="Next track">${icon("next")}</button>
+          ${a.volume_level !== undefined ? `<input type="range" min="0" max="100" value="${vol}" style="--val:${vol}%" data-vol="${s.entity_id}" aria-label="Volume">` : ""}
+        </div>
+      </div>
+    </article>`;
+  }
   function viewMedia() {
     // Tidy (14 Nov): one tile per speaker — the Sonos ones (Music Assistant, Alexa, the wall tablet's voice and browser
     // players are copies of the same speakers) — plus one TV tile: the first of the TV's several entries that is online.
@@ -807,7 +846,7 @@
       return `<article class="card">
         <div class="card-head"><span class="ico" style="--tint:var(--coral)">${icon("music")}</span>
           <div class="grow"><h3>${esc(prettyName(s))}</h3><div class="row-sub">${isLR(s) ? "TV surround · Arc, 2 Era 300, Sub" : `${esc(areaOf(s.entity_id) || "")}${areaOf(s.entity_id) ? " · " : ""}`}${isLR(s) ? " · " : ""}${esc(ok(s) ? s.state : "offline")}</div></div></div>
-        ${a.media_title ? `<div class="np">${a.entity_picture ? `<img src="${esc(store.hassUrl + a.entity_picture)}" alt="">` : ""}<div class="t"><div><b>${esc(a.media_title)}</b></div><div class="row-sub">${esc(a.media_artist || a.media_album_name || "")}</div></div></div>` : ""}
+        ${a.media_title ? `<div class="np">${a.entity_picture ? `<img src="${esc(artUrl(a.entity_picture))}" alt="">` : ""}<div class="t"><div><b>${esc(a.media_title)}</b></div><div class="row-sub">${esc(a.media_artist || a.media_album_name || "")}</div></div></div>` : ""}
         ${ok(s) ? `<div class="media-ctl">
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause">${icon(s.state === "playing" ? "pause" : "play")}</button>
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_next_track" aria-label="Next track">${icon("next")}</button>
@@ -821,6 +860,7 @@
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}
         ${(() => { const r = st("switch.finca_romantic_mode"); if (!r) return ""; const on = r.state === "on";
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${r.entity_id}">${icon("heart")}${on ? "End romantic mode" : "Romantic mode"}</button>`; })()}</div>
+      ${nowPlaying()}
       ${musicSearch()}
       ${players.length ? `<div class="grid g-2">${players.map(card).join("")}</div>` : '<p class="empty">No speakers found.</p>'}
     </section>`;
@@ -1339,6 +1379,7 @@
   document.addEventListener("change", ev => {
     const t = ev.target;
     if (t.dataset.bri) svc("light", "turn_on", { brightness_pct: +t.value }, { entity_id: t.dataset.bri.split(",") });
+    if (t.dataset.seek) { np.drag = false; svc("media_player", "media_seek", { seek_position: +t.value }, { entity_id: t.dataset.seek }); }
     if (t.dataset.vol) svc("media_player", "volume_set", { volume_level: +t.value / 100 }, { entity_id: t.dataset.vol });
     if (t.id === "jreply") mem.set("jarvis.reply", t.value);
     if (t.dataset.roomFor) updateDevice(t.dataset.roomFor, { area_id: t.value || null }, t.value ? `Moved to ${(store.areas[t.value] || {}).name || "room"}` : "Removed from its room");
@@ -1424,6 +1465,16 @@
   }
 
   function tick() { const d = new Date(); $("#clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+  const np = { drag: false };
+  document.addEventListener("pointerdown", ev => { if (ev.target.id === "np-seek") np.drag = true; });
+  document.addEventListener("input", ev => { if (ev.target.id === "np-seek") { np.drag = true; const c = $("#np-cur"); if (c) c.textContent = fmtDur(+ev.target.value); } });
+  setInterval(() => {
+    const r = $("#np-seek"); if (!r || np.drag) return;
+    const s = st(r.dataset.seek); if (!s || s.state !== "playing") return;
+    const pos = npPos(s.attributes, true), dur = +r.dataset.dur;
+    r.value = Math.round(pos); r.style.setProperty("--val", (dur ? pos / dur * 100 : 0) + "%");
+    const c = $("#np-cur"); if (c) c.textContent = fmtDur(pos);
+  }, 1000);
   setInterval(() => {
     tick();
     // Refresh pictures by loading the new one first, then swapping it in (no blank frame).

@@ -550,3 +550,23 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 @keyframes hudspin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ico::before { animation: none; } }
 .big-ico { border-radius: 50% !important; }
+
+/* Now playing (14 Nov) */
+.nowplay { display: flex; gap: 18px; align-items: center; }
+.np-art { flex: none; width: 132px; height: 132px; border-radius: 16px; overflow: hidden; display: grid; place-items: center;
+  background: var(--glass); box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--coral) 60%, transparent), 0 0 0 1px color-mix(in srgb, var(--coral) 35%, transparent); }
+.np-art img { width: 100%; height: 100%; object-fit: cover; }
+.np-art svg { width: 48px; height: 48px; color: var(--coral); }
+.np-body { flex: 1; min-width: 0; }
+.np-title { margin: 4px 0 2px; font-size: 1.3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-prog { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-family: var(--font-data); font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.np-prog input { flex: 1; }
+.np-ctl .np-main { width: 58px; height: 58px; background: linear-gradient(135deg, var(--coral), var(--sunset)); color: #1a1020; border: 0; }
+.np-ctl input[type=range] { flex: 1; min-width: 60px; }
+@media (max-width: 560px) {
+  .nowplay { flex-direction: column; align-items: stretch; text-align: center; }
+  .np-art { width: min(70vw, 260px); height: min(70vw, 260px); margin: 0 auto; }
+  .np-ctl { justify-content: center; flex-wrap: wrap; }
+  .np-ctl input[type=range] { flex-basis: 100%; }
+}
