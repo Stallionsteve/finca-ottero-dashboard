@@ -1139,7 +1139,7 @@
     const touched = lastTouchedVol && lastTouchedVol.el === t && Date.now() - lastTouchedVol.at < 20000;
     if (!touched) { t.value = now; t.style.setProperty("--val", now + "%"); return; }
     let want = +t.value;
-    if (want > now + 25) { want = now + 25; t.value = want; t.style.setProperty("--val", want + "%"); toast(`Turned up to ${want}% (in steps for safety). Drag again for louder.`); }
+    if (want > now + 40) { want = now + 40; t.value = want; t.style.setProperty("--val", want + "%"); toast(`Turned up to ${want}% (in steps for safety). Drag again for louder.`); }
     svc("media_player", "volume_set", { volume_level: want / 100 }, { entity_id: t.dataset.vol });
   }
   // A slider being dragged (iPhone doesn't focus range inputs, so track the touch itself).
