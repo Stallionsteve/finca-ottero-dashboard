@@ -709,3 +709,6 @@ details.how > .note { margin-top: 8px; }
 .play-btn.fail { background: linear-gradient(135deg, #c2364f, #ff5c6e); color: #fff; }
 .play-btn svg { stroke-width: 2.2; }
 input[type="range"] { touch-action: pan-y; } /* scrolling past a slider doesn't move it */
+/* Header fix (14 Nov): on iPhone home-screen apps the sticky header was pushed below the status bar and covered the top of
+   the page. It now sits at the very top and pads itself below the status bar instead. */
+.topbar { top: 0; padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
