@@ -726,3 +726,49 @@ input[type="range"] { touch-action: pan-y; } /* scrolling past a slider doesn't 
 .nav .more-link[aria-expanded="true"] { color: var(--turq); }
 @media (min-width: 900px) { .more-panel { display: none; } }
 .more-open .jarvis-fab { opacity: 0; pointer-events: none; transition: opacity .15s; }
+
+/* ===== Stark HUD touches (15 Nov) — subtle, on top of the sunset design ===== */
+/* 1. HUD ring gauges in the Home header */
+.hud-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; position: relative; z-index: 1; }
+.gauge { position: relative; display: grid; justify-items: center; gap: 2px; }
+.gauge svg { width: 100%; max-width: 104px; aspect-ratio: 1; overflow: visible; }
+.gauge .g-ticks { fill: none; stroke: color-mix(in srgb, var(--tint) 45%, transparent); stroke-width: 1.2; stroke-dasharray: 1.5 4.9; animation: hudspin 40s linear infinite; transform-origin: 44px 44px; }
+.gauge .g-track { fill: rgba(10, 15, 36, .45); stroke: color-mix(in srgb, var(--tint) 14%, transparent); stroke-width: 6; }
+.gauge .g-val { fill: none; stroke: var(--tint); stroke-width: 6; stroke-linecap: round; filter: drop-shadow(0 0 4px var(--tint)); transition: stroke-dasharray .8s ease; }
+.gauge .g-txt { position: absolute; top: 0; left: 0; right: 0; aspect-ratio: 1; max-width: 104px; margin: 0 auto; display: grid; place-content: center; text-align: center; }
+.gauge .g-txt b { font-family: var(--font-data); font-weight: 500; font-size: 19px; color: var(--sand); line-height: 1; }
+.gauge .g-txt b small { font-size: 10px; color: var(--muted); margin-left: 2px; }
+.gauge .g-txt span { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--tint); margin-top: 4px; }
+.gauge em { font-style: normal; font-size: 11px; color: var(--muted); }
+
+/* 2. HUD corner brackets on cards (top-left and bottom-right) */
+.card {
+  --hc: color-mix(in srgb, var(--turq) 42%, transparent);
+  background:
+    linear-gradient(var(--hc), var(--hc)) left 12px top 12px / 16px 1.5px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) left 12px top 12px / 1.5px 16px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right 12px bottom 12px / 16px 1.5px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right 12px bottom 12px / 1.5px 16px no-repeat,
+    linear-gradient(160deg, var(--glass-hi), var(--glass));
+}
+.tile.is-on { --hc: color-mix(in srgb, var(--sunset) 60%, transparent); }
+
+/* 3. Faint holographic grid behind everything, with a slow scan band (one layer under the content) */
+html::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(180deg, transparent, rgba(46, 230, 214, .05) 70%, rgba(46, 230, 214, .11) 97%, transparent),
+    linear-gradient(rgba(46, 230, 214, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(46, 230, 214, .045) 1px, transparent 1px);
+  background-size: 100% 18vh, 46px 46px, 46px 46px;
+  background-repeat: no-repeat, repeat, repeat;
+  background-position: 0 -20vh, 0 0, 0 0;
+  -webkit-mask: radial-gradient(130% 90% at 50% 35%, #000 35%, transparent 90%); mask: radial-gradient(130% 90% at 50% 35%, #000 35%, transparent 90%);
+  animation: hudscan 16s linear 3s infinite;
+}
+@keyframes hudscan { 0% { background-position: 0 -20vh, 0 0, 0 0; } 60%, 100% { background-position: 0 120vh, 0 0, 0 0; } }
+
+/* 4. Section headings: spaced HUD caps with a tick line */
+h2.section { display: flex; align-items: center; gap: 12px; color: color-mix(in srgb, var(--turq) 70%, var(--muted)); letter-spacing: .22em; font-size: 12px; }
+h2.section::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--turq); box-shadow: 0 0 8px var(--turq); flex: none; }
+h2.section::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--turq) 40%, transparent), transparent); }
+@media (prefers-reduced-motion: reduce) { html::after, .gauge .g-ticks { animation: none; } }

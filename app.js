@@ -416,6 +416,23 @@
     const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 450); };
     el.addEventListener("click", close); document.body.appendChild(el); setTimeout(close, 2300);
   }
+  // HUD ring gauges (15 Nov, Stark-style touch): solar, battery, home use. Live readings only; "—" when unknown.
+  function ring(label, val, max, unit, tint, sub) {
+    const pct = val === null || isNaN(val) ? 0 : Math.max(0, Math.min(1, val / max)), R = 34, C = 2 * Math.PI * R;
+    return `<div class="gauge" style="--tint:var(--${tint})"><svg viewBox="0 0 88 88" aria-hidden="true">
+        <circle cx="44" cy="44" r="41" class="g-ticks"/><circle cx="44" cy="44" r="${R}" class="g-track"/>
+        <circle cx="44" cy="44" r="${R}" class="g-val" stroke-dasharray="${(C * pct).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 44 44)"/></svg>
+      <div class="g-txt"><b>${val === null || isNaN(val) ? "—" : unit === "%" ? Math.round(val) : val.toFixed(1)}<small>${unit}</small></b><span>${label}</span></div>
+      ${sub ? `<em>${sub}</em>` : ""}</div>`;
+  }
+  function hudGauges(e) {
+    const kwOf = w => w === null ? null : w / 1000;
+    return `<div class="hud-gauges">
+      ${ring("Solar", kwOf(e.pv), 17, "kW", "sunset", "")}
+      ${ring("Battery", e.soc, 100, "%", "turq", e.batt === null ? "" : e.batt > 30 ? "charging" : e.batt < -30 ? "discharging" : "idle")}
+      ${ring("Home", kwOf(e.home), 8, "kW", "coral", "")}
+    </div>`;
+  }
   function viewHome() {
     const e = energy();
     const lights = realLights(), lightsOn = lights.filter(s => s.state === "on").length;
@@ -440,10 +457,9 @@
             <span class="wx-sub">${weather ? esc(String(weather.state).replace(/-/g, " ").replace("partlycloudy", "partly cloudy")) : ""}${weather && weather.attributes.wind_speed !== undefined ? ` · ${Math.round(weather.attributes.wind_speed)} km/h` : ""}${sunset ? ` · sunset ${sunset}` : ""}</span>
             <span class="wx-more">5-day forecast ›</span></button>` : ""}
         </div>
+        ${hudGauges(e)}
         <div class="status-row">
           <span class="chip"><span class="dot ${store.online ? "" : "warn"}"></span>${icon("wifi")}${store.mode === "demo" ? "Demo data" : store.online ? "Home Assistant" : "Reconnecting…"}</span>
-          <span class="chip" style="color:var(--sunset)">${icon("sun")}<span class="v" style="color:var(--sand)">${e.pv === null ? "—" : kw(e.pv) + " kW"}</span></span>
-          <span class="chip" style="color:var(--turq)">${icon("battery")}<span class="v" style="color:var(--sand)">${e.soc === null ? "—" : Math.round(e.soc) + "%"}</span>${e.batt === null ? "" : `<span style="color:var(--muted)">${e.batt > 30 ? "charging" : e.batt < -30 ? "discharging" : "idle"}</span>`}</span>
           ${e.grid === null ? "" : `<span class="chip">${icon("grid")}<span class="v">${kw(e.grid)} kW</span><span style="color:var(--muted)">${e.grid > 30 ? "from grid" : e.grid < -30 ? "to grid" : "grid idle"}</span></span>`}
           <span class="chip" title="${esc(off.map(nm).join(", ") || "Everything is reachable")}"><span class="dot ${off.length ? "warn" : ""}"></span>${off.length ? `<span class="v">${off.length}</span> offline` : "All devices online"}</span>
         </div>
