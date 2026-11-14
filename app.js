@@ -883,7 +883,8 @@
   }
   // Search results (14 Nov): one search per Enter/Search tap (not per letter: keeps Spotify's rate limit happy),
   // a compact list with covers; tap one to select it, then Play.
-  const ms = { q: "", res: null, sel: null, busy: false, entry: null, err: "" };
+  const ms = { q: "", res: null, sel: null, busy: false, entry: null, err: "", play: "" };
+  const setPlay = (v, ms_ = 0) => { ms.play = v; lastHtml = ""; render(false); if (ms_) setTimeout(() => { if (ms.play === v) { ms.play = ""; lastHtml = ""; render(false); } }, ms_); };
   // Your Spotify (14 Nov): Liked Songs + saved playlists from Music Assistant's library copy (local, no Spotify requests).
   const lib = { at: 0, items: null, busy: false };
   const GENERATED = /\(from library\)|^infinite mix|^all favorited|^recently (added|played)/i;
@@ -954,6 +955,8 @@
     const names = { "media_player.tv_room": "Living room" };
     // The Arc carries the whole TV surround (2 Era 300 + Sub are bonded to it), so it leads the list as "Living room".
     ma.sort((a, b) => (b.entity_id === "media_player.tv_room") - (a.entity_id === "media_player.tv_room"));
+    { const seen = new Set(), label = s => s.entity_id === "media_player.tv_room" ? "Living room" : nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV");
+      const keep = []; ma.forEach(s => { const k = label(s).toLowerCase(); if (!seen.has(k)) { seen.add(k); keep.push(s); } }); ma.splice(0, ma.length, ...keep); }
     return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
       <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
         <div class="ms-bar"><input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Search Spotify" autocomplete="off" enterkeyhint="search" value="${esc(ms.q)}">
@@ -964,7 +967,8 @@
           ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
           <button type="button" class="seg-btn" data-spk-all="1">All speakers</button>
         </div>
-        <div class="ms-play"><button class="btn btn-primary" type="button" data-msplay="1">${icon("music")}Play</button>
+        <div class="ms-play"><button class="btn btn-primary play-btn ${ms.play || ""}" type="button" data-msplay="1" aria-live="polite" ${ms.play === "busy" ? "disabled" : ""}>${
+            ms.play === "busy" ? '<span class="spin" aria-hidden="true"></span>Starting…' : ms.play === "ok" ? `${icon("check")}Playing` : ms.play === "fail" ? "Didn't play" : `${icon("music")}Play`}</button>
           <span class="row-sub">${ms.sel ? `Selected: <b style="color:var(--sand)">${esc(/^liked songs/i.test(ms.sel.name) ? "Liked Songs (shuffled)" : ms.sel.name.trim())}</b>` : ms.q ? `Plays “${esc(ms.q)}”` : "Search, pick a result, choose speakers, play"}</span></div>
       </form>
       ${(() => { const fav = sonosFavs(); if (!fav.length) return "";
@@ -1584,10 +1588,11 @@
     const targets = sonos.length > 1 ? [lead, ...others] : where;
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
+    setPlay("busy");
     group.then(() => svc("music_assistant", "play_media", data, { entity_id: targets }))
       .then(() => pick && /^liked songs/i.test(pick.name) ? svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: targets[0] }).catch(() => null) : null)
-      .then(() => { toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
-      .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
+      .then(() => { setPlay("ok", 3000); toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
+      .catch(() => { setPlay("fail", 3500); toast(`Couldn't play "${q}". Spotify may be busy; try again in a minute.`); });
   });
   document.addEventListener("click", ev => {
     const f = ev.target.closest("[data-favgo]"); if (!f) return;

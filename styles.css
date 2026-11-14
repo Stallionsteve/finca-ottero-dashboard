@@ -701,3 +701,10 @@ details.how > .note { margin-top: 8px; }
 @keyframes jbootIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
 .routine-row { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 @media (max-width: 430px) { .routine-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Play button feedback (14 Nov) */
+.play-btn { transition: background .25s, transform .1s; }
+.play-btn:active { transform: scale(.96); }
+.play-btn.busy { opacity: .9; }
+.play-btn.ok { background: linear-gradient(135deg, #1fbfb0, var(--turq)); color: #06222a; box-shadow: 0 0 18px -4px var(--turq); }
+.play-btn.fail { background: linear-gradient(135deg, #c2364f, #ff5c6e); color: #fff; }
+.play-btn svg { stroke-width: 2.2; }
