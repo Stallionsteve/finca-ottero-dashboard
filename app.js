@@ -111,6 +111,8 @@
     music: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
     radio: '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8l10-5"/><circle cx="15.5" cy="14" r="2.5"/><path d="M6.5 12.5h4M6.5 15.5h4"/>',
     plane: '<path d="M10.5 21l2-7-6 0-2 3-2-1 1.5-4L2.5 8l2-1 2 3h6l-2-7 2.5 0 4.5 7h4a1.5 1.5 0 0 1 0 3h-4l-4.5 7z"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16 16"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -855,6 +857,43 @@
     const src = (st("media_player.bar_bar") || st("media_player.tv_room_tv_room") || { attributes: {} }).attributes.source_list || [];
     return src.filter(x => !/^(line-in|tv|audio component)/i.test(x));
   }
+  // Search results (14 Nov): one search per Enter/Search tap (not per letter: keeps Spotify's rate limit happy),
+  // a compact list with covers; tap one to select it, then Play.
+  const ms = { q: "", res: null, sel: null, busy: false, entry: null, err: "" };
+  function msResults() {
+    if (ms.err) return `<p class="row-sub ms-msg">${esc(ms.err)}</p>`;
+    if (!ms.res) return "";
+    const r = ms.res, rows = [
+      ...(r.artists || []).slice(0, 1).map(x => ({ ...x, kind: "Artist" })),
+      ...(r.albums || []).slice(0, 3).map(x => ({ ...x, kind: "Album" })),
+      ...(r.playlists || []).slice(0, 2).map(x => ({ ...x, kind: "Playlist" })),
+      ...(r.tracks || []).slice(0, 4).map(x => ({ ...x, kind: "Song" }))];
+    ms.rows = rows;
+    if (!rows.length) return `<p class="row-sub ms-msg">Nothing found for “${esc(ms.q)}”.</p>`;
+    const by = x => (x.artists || []).map(a => a.name).filter(Boolean).slice(0, 2).join(", ") || x.owner || "";
+    return `<div class="ms-res" role="listbox" aria-label="Search results">${rows.map((x, i) => `<button type="button" class="ms-row" role="option" data-msi="${i}" aria-selected="${!!ms.sel && ms.sel.uri === x.uri}">
+        <img src="${esc(x.image || FALLBACK_ART)}" alt="" loading="lazy" class="${x.image ? "" : "fallback"} ${x.kind === "Artist" ? "round" : ""}">
+        <span class="ms-t"><b>${esc(x.name)}</b><small>${x.kind}${by(x) && x.kind !== "Artist" ? " · " + esc(by(x)) : ""}</small></span>
+        <span class="ms-ck" aria-hidden="true">${icon("check")}</span></button>`).join("")}</div>`;
+  }
+  async function msSearch(q) {
+    ms.q = q; ms.sel = null; ms.err = ""; ms.res = null;
+    if (!q) { lastHtml = ""; render(false); return; }
+    ms.busy = true; lastHtml = ""; render(false);
+    try {
+      if (store.mode === "demo") {
+        await new Promise(r => setTimeout(r, 500));
+        ms.res = { artists: [{ name: q, uri: "demo://artist", image: "" }], albums: [{ name: `${q}: Greatest Hits`, uri: "demo://album1", artists: [{ name: q }] }, { name: "Live", uri: "demo://album2", artists: [{ name: q }] }],
+          tracks: [{ name: "Best song", uri: "demo://t1", artists: [{ name: q }] }, { name: "Another one", uri: "demo://t2", artists: [{ name: q }] }] };
+      } else {
+        if (!ms.entry) { const e = await store.conn.sendMessagePromise({ type: "config_entries/get", domain: "music_assistant" }); ms.entry = (e.find(x => x.state === "loaded") || e[0] || {}).entry_id; }
+        const r = await store.conn.sendMessagePromise({ type: "call_service", domain: "music_assistant", service: "search",
+          service_data: { config_entry_id: ms.entry, name: q, limit: 5 }, return_response: true });
+        ms.res = r.response || {};
+      }
+    } catch (e) { ms.err = "Search didn't work just now (Spotify may be busy). Try again in a minute, or press Play to try anyway."; }
+    ms.busy = false; lastHtml = ""; render(false);
+  }
   function musicSearch() {
     const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s)));
     if (!ma.length && store.mode !== "demo") return "";
@@ -865,12 +904,15 @@
     ma.sort((a, b) => (b.entity_id === "media_player.tv_room") - (a.entity_id === "media_player.tv_room"));
     return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
       <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
-        <input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Music to play" autocomplete="off" enterkeyhint="go" style="flex:1 1 260px">
+        <div class="ms-bar"><input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Search Spotify" autocomplete="off" enterkeyhint="search" value="${esc(ms.q)}">
+          <button class="btn" type="submit" aria-label="Search">${ms.busy ? '<span class="spin" aria-hidden="true"></span>' : icon("search")}</button></div>
+        ${msResults()}
         <div class="seg-row" id="music-where" role="group" aria-label="Speakers (pick one or more)" style="flex:1 1 100%;flex-wrap:wrap">
           ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
           <button type="button" class="seg-btn" data-spk-all="1">All speakers</button>
         </div>
-        <button class="btn btn-primary" type="submit">${icon("music")}Play</button>
+        <div class="ms-play"><button class="btn btn-primary" type="button" data-msplay="1">${icon("music")}Play</button>
+          <span class="row-sub">${ms.sel ? `Selected: <b style="color:var(--sand)">${esc(ms.sel.name)}</b>` : ms.q ? `Plays “${esc(ms.q)}”` : "Search, pick a result, choose speakers, play"}</span></div>
       </form>
       ${(() => { const fav = sonosFavs(); if (!fav.length) return "";
         const isRadio = f => /radio|bbc|1xtra|wfmu|\bfm\b|talk|capital|heart|smooth|apple music 1/i.test(f);
@@ -887,7 +929,7 @@
   const FALLBACK_ART = "icon-dome-512.png";
   document.addEventListener("error", ev => {
     const i = ev.target;
-    if (i.tagName === "IMG" && i.closest(".np-art, .np") && !i.dataset.fb) { i.dataset.fb = "1"; i.classList.add("fallback"); i.src = FALLBACK_ART; }
+    if (i.tagName === "IMG" && i.closest(".np-art, .np, .ms-res") && !i.dataset.fb) { i.dataset.fb = "1"; i.classList.add("fallback"); i.src = FALLBACK_ART; }
   }, true);
   const artUrl = p => !p ? "" : /^https?:/.test(p) ? p : store.hassUrl + p;
   const fmtDur = x => { x = Math.max(0, Math.floor(x || 0)); return `${Math.floor(x / 60)}:${pad(x % 60)}`; };
@@ -1038,7 +1080,9 @@
     lastHtml = html; lastView = v;
     const keep = {};
     document.querySelectorAll("#main img[data-cam]").forEach(img => { keep[img.dataset.cam] = img; });
+    const mq = $("#music-q"), mqFocus = mq && document.activeElement === mq, mqVal = mq && mq.value;
     $("#main").innerHTML = html;
+    if (mq) { const n = $("#music-q"); if (n) { n.value = mqVal; if (mqFocus) { n.focus(); try { n.setSelectionRange(mqVal.length, mqVal.length); } catch { /* fine */ } } } }
     document.querySelectorAll("#main img[data-cam]").forEach(img => {
       const old = keep[img.dataset.cam];
       if (old && (old.naturalWidth || !old.complete)) { img.replaceWith(old); return; }  // loaded or still loading: keep it
@@ -1449,7 +1493,14 @@
   document.addEventListener("submit", ev => {
     if (ev.target.id !== "music-search") return;
     ev.preventDefault();
-    const q = $("#music-q").value.trim(); if (!q) return;
+    const q = $("#music-q").value.trim(); $("#music-q").blur(); msSearch(q);
+  });
+  document.addEventListener("click", ev => {
+    const r = ev.target.closest("[data-msi]");
+    if (r) { const x = (ms.rows || [])[+r.dataset.msi]; if (!x) return; ms.sel = ms.sel && ms.sel.uri === x.uri ? null : x; lastHtml = ""; render(false); return; }
+    if (!ev.target.closest("[data-msplay]")) return;
+    const typed = ($("#music-q") || {}).value; if (typed !== undefined && typed.trim() !== ms.q) { ms.q = typed.trim(); ms.sel = null; }
+    const pick = ms.sel, q = pick ? pick.name : ms.q; if (!q) { toast("Search for something first"); $("#music-q") && $("#music-q").focus(); return; }
     const where = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => b.dataset.spk);
     if (!where.length) { toast("Pick at least one speaker first"); return; }
     mem.set("music.speakers", where.join(","));
@@ -1462,8 +1513,10 @@
     const group = Promise.all(stale.map(e => svc("media_player", "unjoin", {}, { entity_id: e }).catch(() => null)))
       .then(() => sonos.length > 1 ? svc("media_player", "join", { group_members: sonos.slice(1) }, { entity_id: lead }).catch(() => null) : null);
     const targets = sonos.length > 1 ? [lead, ...others] : where;
-    group.then(() => svc("music_assistant", "play_media", { media_id: q, enqueue: "replace", radio_mode: true }, { entity_id: targets }))
-      .then(() => { toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); $("#music-q").value = ""; })
+    const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
+                      : { media_id: q, enqueue: "replace", radio_mode: true };
+    group.then(() => svc("music_assistant", "play_media", data, { entity_id: targets }))
+      .then(() => { toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
       .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
   });
   document.addEventListener("click", ev => {
