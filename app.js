@@ -118,6 +118,7 @@
     repeat1: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M11.5 10.5 13 9.5v5"/>',
     share: '<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
     film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+    gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.2"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -1269,6 +1270,29 @@
       .forEach(s => { const name = devName(s).trim(); if (!offlineByDevice.has(name)) offlineByDevice.set(name, { name, area: areaOf(s.entity_id), since: s.last_changed }); });
     return { batteries, low: batteries.filter(b => b.v !== null && b.v <= 25), offline: [...offlineByDevice.values()].sort((a, b) => a.name.localeCompare(b.name)) };
   }
+  // Home Assistant's own health (14 Nov): System Monitor readings; one tap switches the useful ones on.
+  const SYS_WANTED = /memory_(use|usage)|processor_use|last_boot|disk_(use|usage).*(?<!free)$|load_?(1|5)/i;
+  function sysHealthCard() {
+    const reg = Object.values(store.ents).filter(e => e.platform === "systemmonitor" && SYS_WANTED.test(e.entity_id) && !/swap|ipv|network|packet|throughput/i.test(e.entity_id));
+    if (!reg.length && store.mode !== "demo") return "";
+    const off = reg.filter(e => e.disabled_by);
+    const live = reg.filter(e => !e.disabled_by).map(e => st(e.entity_id)).filter(Boolean);
+    const fmt = s => { const u = s.attributes.unit_of_measurement || ""; if (s.attributes.device_class === "timestamp") return ok(s) ? `${ago(s.state)}` : "—";
+      return ok(s) ? `${Math.round(+s.state * 10) / 10}${u === "%" ? "%" : " " + u}` : "—"; };
+    const warn = s => ok(s) && s.attributes.unit_of_measurement === "%" && +s.state >= 85;
+    return `<article class="card"><div class="card-head"><span class="ico">${icon("gauge")}</span><div class="grow"><h3>Home Assistant health</h3><div class="row-sub">The computer it runs on (System Monitor)</div></div></div>
+      ${live.map(s => `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s).replace(/^system monitor\\s*/i, ""))}</div></div><span class="pill ${warn(s) ? "warn" : "ok"}">${esc(fmt(s))}</span></div>`).join("")}
+      ${off.length ? `<p class="note">${icon("info")}<span>${off.length} health reading${off.length === 1 ? " is" : "s are"} switched off.</span></p>
+        <div class="acts" style="grid-template-columns:1fr;margin-top:10px"><button class="btn btn-primary" data-action="sys-enable">Switch on health readings</button></div>` : ""}
+    </article>`;
+  }
+  async function enableSysHealth() {
+    const off = Object.values(store.ents).filter(e => e.platform === "systemmonitor" && SYS_WANTED.test(e.entity_id) && !/swap|ipv|network|packet|throughput/i.test(e.entity_id) && e.disabled_by);
+    let n = 0;
+    for (const e of off) { try { const r = await store.conn.sendMessagePromise({ type: "config/entity_registry/update", entity_id: e.entity_id, disabled_by: null });
+      store.ents[e.entity_id] = r.entity_entry || { ...e, disabled_by: null }; n++; } catch { /* skip */ } }
+    toast(n ? `Switched on ${n} readings. They appear within a minute.` : "Couldn't switch them on"); lastHtml = ""; render(false);
+  }
   function viewHealth() {
     const h = healthData();
     const row = (title, sub, pill, warn) => `<div class="row"><div class="row-body"><div class="row-title">${esc(title)}</div><div class="row-sub">${sub}</div></div><span class="pill ${warn ? "warn" : "ok"}">${pill}</span></div>`;
@@ -1280,6 +1304,7 @@
         <article class="card"><div class="card-head"><span class="ico">${icon("wifi")}</span><div class="grow"><h3>Offline or unplugged</h3><div class="row-sub">Sensors, cameras, alarm and lights</div></div></div>
           ${h.offline.length ? h.offline.map(o => row(o.name, `${esc(o.area || "")}${o.area ? " · " : ""}since ${ago(o.since)}`, "Offline", true)).join("") : '<p class="note">Everything is online.</p>'}</article>
       </div>
+      ${sysHealthCard()}
       ${(() => { const ctl = Object.values(store.ents).filter(e => e.platform === "victron_gx" && /^(switch|number|select|button)\./.test(e.entity_id));
         if (!ctl.length) return "";
         const locked = mem.get("victron.locked", false);
@@ -1547,6 +1572,7 @@
     }
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
     else if (a === "share-app") { ev.preventDefault(); shareApp(); }
+    else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
     else if (a === "close-nav") closeLayer();
     else if (a === "close") { if (ev.target === t || t.tagName === "BUTTON") { closeLayer(); if (location.hash === "#jarvis") history.replaceState(null, "", "#home"); renderNav(current()); } }
   });
