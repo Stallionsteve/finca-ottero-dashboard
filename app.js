@@ -103,7 +103,7 @@
     drop: '<path d="M12 3c3 4 6.2 7 6.2 11a6.2 6.2 0 0 1-12.4 0C5.8 10 9 7 12 3z"/>',
     heater: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7.5"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/>',
-    moon: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/>',
+    moon: '<path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.6 6.6 0 0 0 10 10z"/>',
     power: '<path d="M12 3v8M7.2 6.2a7.5 7.5 0 1 0 9.6 0"/>',
     lock: '<rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
     alexa: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5a5 5 0 1 1 7 0"/>',
@@ -340,24 +340,27 @@
         wx.days = (((r.response || {})[w.entity_id] || {}).forecast) || [];
       }
       wx.at = Date.now(); lastHtml = ""; render(false);
+      const open = document.querySelector("#layer .sheet"); if (open && wx.sheet && !open.querySelector(".wx-days")) open.innerHTML = weatherCard(true);
     } catch { wx.at = Date.now() - 25 * 60000; } finally { wx.busy = false; }
   }
   const WX_ICON = { sunny: "☀️", "clear-night": "🌙", partlycloudy: "⛅", cloudy: "☁️", rainy: "🌦️", pouring: "🌧️", "lightning-rainy": "⛈️", lightning: "🌩️", fog: "🌫️", windy: "💨", "windy-variant": "💨", snowy: "❄️", "snowy-rainy": "🌨️", hail: "🌨️" };
   const compass = b => b === undefined || b === null ? "" : ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(((+b % 360) + 360) % 360 / 45) % 8];
-  function weatherCard() {
+  function weatherCard(inSheet = false) {
     loadForecast();
     const days = (wx.days || []).slice(0, 5); if (!days.length) return "";
     const w = all("weather")[0], a = (w && w.attributes) || {};
-    return `<article class="card wx" style="--tint:var(--turq)">
+    return `<article class="${inSheet ? "" : "card "}wx" style="--tint:var(--turq)">
       <div class="card-head"><span class="ico">${icon("sun")}</span><div class="grow"><h3>Weather</h3>
         <div class="row-sub">${a.temperature !== undefined ? `Now ${Math.round(a.temperature)}°C` : ""}${a.wind_speed !== undefined ? ` · wind ${Math.round(a.wind_speed)} km/h ${compass(a.wind_bearing)}` : ""}${a.humidity !== undefined ? ` · humidity ${Math.round(a.humidity)}%` : ""}</div></div></div>
+      <div class="row-sub wx-key">Highs and lows in °C · wind in km/h</div>
       <div class="wx-days">${days.map((d, i) => `<div class="wx-day">
         <div class="wx-d">${i === 0 ? "Today" : new Date(d.datetime).toLocaleDateString("en-GB", { weekday: "short" })}</div>
         <div class="wx-i" title="${esc(String(d.condition || "").replace(/-/g, " "))}">${WX_ICON[d.condition] || "·"}</div>
         <div class="wx-t"><b>${Math.round(d.temperature)}°</b>${d.templow !== undefined ? `<span>${Math.round(d.templow)}°</span>` : ""}</div>
-        <div class="wx-w">💨 ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small> km/h ${compass(d.wind_bearing)}</small></div>
+        <div class="wx-w">💨 ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small>${compass(d.wind_bearing) || "&nbsp;"}</small></div>
         ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r">💧 ${Math.round(d.precipitation_probability)}%</div>` : (d.precipitation || 0) >= 0.3 ? `<div class="wx-r">💧 ${(+d.precipitation).toFixed(1)} mm</div>` : ""}
       </div>`).join("")}</div>
+      ${inSheet ? '<div class="acts"><button class="btn" data-action="close">Close</button></div>' : ""}
     </article>`;
   }
   function solarForecastCard() {
@@ -383,9 +386,9 @@
   function routineRow() {
     const h = st("switch.finca_holiday_mode"); const hol = h && h.state === "on";
     return `<div class="routine-row">
-      <button class="btn" data-askgo="Good morning Jarvis">${icon("sun")}Good morning</button>
+      <button class="btn" data-askgo="Good morning Jarvis">${icon("sun")}Morning</button>
       <button class="btn" data-askgo="Goodnight Jarvis">${icon("moon")}Goodnight</button>
-      ${h || store.mode === "demo" ? `<button class="btn ${hol ? "btn-primary" : ""}" ${h ? `data-toggle="${h.entity_id}"` : ""} aria-pressed="${hol}">${icon("plane")}${hol ? "Holiday mode on" : "Holiday mode"}</button>` : ""}
+      ${h || store.mode === "demo" ? `<button class="btn ${hol ? "btn-primary" : ""}" ${h ? `data-toggle="${h.entity_id}"` : ""} aria-pressed="${hol}">${icon("plane")}${hol ? "Holiday on" : "Holiday"}</button>` : ""}
     </div>`;
   }
   function viewHome() {
@@ -405,7 +408,10 @@
       <div class="card hero">
         <div class="hero-top">
           <div><p class="greet">${greeting()}</p><p class="hero-sub">${date} · Finca Ottero</p></div>
-          ${wTemp || sunset ? `<div class="weather">${wTemp ? `<b>${wTemp}</b>` : ""}<div>${weather ? esc(String(weather.state).replace(/-/g, " ")) : ""}${sunset ? ` · sunset ${sunset}` : ""}</div></div>` : ""}
+          ${wTemp || sunset ? `<button class="weather wx-btn" data-action="weather" aria-label="Open the 5-day weather forecast">
+            <span class="wx-now">${weather ? `<span class="wx-emoji" aria-hidden="true">${WX_ICON[weather.state] || ""}</span>` : ""}${wTemp ? `<b>${wTemp}</b>` : ""}</span>
+            <span class="wx-sub">${weather ? esc(String(weather.state).replace(/-/g, " ").replace("partlycloudy", "partly cloudy")) : ""}${weather && weather.attributes.wind_speed !== undefined ? ` · ${Math.round(weather.attributes.wind_speed)} km/h` : ""}${sunset ? ` · sunset ${sunset}` : ""}</span>
+            <span class="wx-more">5-day forecast ›</span></button>` : ""}
         </div>
         <div class="status-row">
           <span class="chip"><span class="dot ${store.online ? "" : "warn"}"></span>${icon("wifi")}${store.mode === "demo" ? "Demo data" : store.online ? "Home Assistant" : "Reconnecting…"}</span>
@@ -418,7 +424,6 @@
 
       ${routineRow()}
       ${quickCard()}
-      ${weatherCard()}
 
       <div class="tiles">
         ${tile({ id: "lighting", title: "Lighting", ic: "bulb", tint: "sunset", href: "#lighting", on: lightsOn > 0, state: lights.length ? `<strong>${lightsOn} of ${lights.length}</strong> lights on` : '<span class="unavail">No lights found</span>' })}
@@ -594,7 +599,7 @@
       </div>
       <div class="seg-row">${["cool", "heat", "auto"].map(m => `<button class="seg-btn" data-ac="${u.id}" data-cmd="mode" data-val="${m}">${m}</button>`).join("")}</div>
       <div class="seg-row">${["low", "medium", "high", "auto"].map(m => `<button class="seg-btn" data-ac="${u.id}" data-cmd="fan" data-val="${m}">Fan ${m}</button>`).join("")}</div>
-      <p class="note" style="margin-top:12px">${icon("alexa")}<span>${last ? `Last sent ${ago(last.at)}: “${esc(last.phrase)}”. ` : ""}Commands go through Alexa; Home Assistant confirms each one from the unit's power use and retries through another speaker if needed.</span></p>
+      <details class="how"><summary>${last ? "Last command and how it works" : "How it works"}</summary><p class="note">${icon("alexa")}<span>${last ? `Last sent ${ago(last.at)}: “${esc(last.phrase)}”. ` : ""}Commands go through Alexa; Home Assistant confirms each one from the unit's power use and retries through another speaker if needed.</span></p></details>
     </article>`;
   }
   function autoCard() {
@@ -606,7 +611,7 @@
         <div class="grow"><h3>Air con on spare power</h3><div class="row-sub">${on ? "On" : "Off"} · spare power ${avail && avail.state === "on" ? "available now" : "not available now"}${C.alexaAC.filter(u => u.temp && num(u.temp) !== null).map(u => ` · ${esc(u.name.toLowerCase())} ${num(u.temp).toFixed(1)} °C`).join("")}</div></div>
         ${a ? sw(a.entity_id, on, "Air con on spare power") : ""}
       </div>
-      <p class="note">${icon("info")}<span>With spare power (battery over 50 % or solar 2.5 kW), a room at 21 °C or below is heated to 23 °C and a room at 25 °C or above is cooled to 23 °C; the unit switches off at 23 °C or when spare power runs out. Living room uses its own thermometer; the master bedroom is estimated as hallway − 2 °C, with a 90-minute limit per session. Automatic sessions run in the evening only: they can start between 17:00 and 22:00 and always end by 22:25, so nothing beeps after 22:30. In the daytime the air con is only switched on and off by you (app or Jarvis). Units you start yourself are never switched off by it, and a unit you switch off yourself is left off for 90 minutes.</span></p>
+      <details class="how"><summary>How it works</summary><p class="note">${icon("info")}<span>With spare power (battery over 50 % or solar 2.5 kW), a room at 21 °C or below is heated to 23 °C and a room at 25 °C or above is cooled to 23 °C; the unit switches off at 23 °C or when spare power runs out. Living room uses its own thermometer; the master bedroom is estimated as hallway − 2 °C, with a 90-minute limit per session. Automatic sessions run in the evening only: they can start between 17:00 and 22:00 and always end by 22:25, so nothing beeps after 22:30. In the daytime the air con is only switched on and off by you (app or Jarvis). Units you start yourself are never switched off by it, and a unit you switch off yourself is left off for 90 minutes.</span></p></details>
     </article>`;
   }
   function viewClimate() {
@@ -653,7 +658,7 @@
         <div class="grow"><h3>Intruder warning</h3><div class="row-sub">${on ? "On" : "Off"} · ${alarms.length ? `watching ${alarms.length} alarm${alarms.length > 1 ? "s" : ""}` : "waiting for the Ring Alarm to be connected"}${sc && sc.state === "on" ? " · playing now" : ""}</div></div>
         ${a ? sw(a.entity_id, on, "Intruder warning") : ""}
       </div>
-      <p class="note" style="margin-bottom:12px">${icon("music")}<span>If the alarm goes off, every Sonos speaker says at full volume, over and over until the alarm is turned off: <b>“¡Atención! Intruso detectado. La policía ha sido avisada.”</b> White lights go off and every colour light turns bright red. Afterwards the speakers and lights go back to how they were. Safety limit 15 minutes; say “Jarvis, stop the alarm warning” to stop it sooner.</span></p>
+      <details class="how"><summary>How it works</summary><p class="note" style="margin-bottom:12px">${icon("music")}<span>If the alarm goes off, every Sonos speaker says at full volume, over and over until the alarm is turned off: <b>“¡Atención! Intruso detectado. La policía ha sido avisada.”</b> White lights go off and every colour light turns bright red. Afterwards the speakers and lights go back to how they were. Safety limit 15 minutes; say “Jarvis, stop the alarm warning” to stop it sooner.</span></p></details>
       ${(st("switch.finca_intruder_warning_active") || {}).state === "on" ? '<button class="btn btn-sm btn-primary" data-action="intruder-stop">Stop the warning</button>' : '<button class="btn btn-sm" data-action="intruder-test">Test quietly</button>'}
     </article>`;
   }
@@ -690,7 +695,7 @@
         ${motions.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>Motion sensors</h3></div></div>${motions.map(sensorRow).join("")}</article>` : ""}
       </div>` : ""}
       ${intruderCard()}
-      <p class="note">${icon("info")}<span>Snapshots show each camera's latest event; Live view streams now; Last recording plays the newest Ring Protect clip. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p>
+      <details class="how"><summary>How it works</summary><p class="note">${icon("info")}<span>Snapshots show each camera's latest event; Live view streams now; Last recording plays the newest Ring Protect clip. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p></details>
     </section>`;
   }
 
@@ -1406,6 +1411,7 @@
     const a = d.action;
     if (a === "gate") { ev.preventDefault(); gateSheet(); }
     else if (a === "gate-go") { closeLayer(); openGate(); }
+    else if (a === "weather") { ev.preventDefault(); wx.sheet = true; sheet(weatherCard(true) || '<p>Loading the forecast…</p>', true); }
     else if (a === "intruder-test") {
       sheet(`<span class="ico big-ico" style="--tint:var(--coral)">${icon("siren")}</span><h2>Test the intruder warning?</h2>
         <p>Plays the Spanish warning twice on every Sonos speaker at low volume (25 %) and turns every colour light bright red (white lights off) for about 20 seconds, then puts speakers and lights back exactly as they were.</p>
