@@ -1129,6 +1129,19 @@
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
   let lastHtml = "", lastView = "";
+  // Volume safety (15 Nov): a slider only sends a volume if a finger/mouse actually touched it, and one move can raise
+  // the volume by at most 25 points (8% → 33%); drag again for more. Turning down is never limited.
+  let lastTouchedVol = null;
+  document.addEventListener("pointerdown", ev => { const r = ev.target.closest && ev.target.closest("input[data-vol]"); if (r) lastTouchedVol = { el: r, at: Date.now() }; }, { capture: true, passive: true });
+  document.addEventListener("touchstart", ev => { const r = ev.target.closest && ev.target.closest("input[data-vol]"); if (r) lastTouchedVol = { el: r, at: Date.now() }; }, { capture: true, passive: true });
+  function setVolumeSafely(t) {
+    const s = st(t.dataset.vol); const now = Math.round(((s && s.attributes.volume_level) || 0) * 100);
+    const touched = lastTouchedVol && lastTouchedVol.el === t && Date.now() - lastTouchedVol.at < 20000;
+    if (!touched) { t.value = now; t.style.setProperty("--val", now + "%"); return; }
+    let want = +t.value;
+    if (want > now + 25) { want = now + 25; t.value = want; t.style.setProperty("--val", want + "%"); toast(`Turned up to ${want}% (in steps for safety). Drag again for louder.`); }
+    svc("media_player", "volume_set", { volume_level: want / 100 }, { entity_id: t.dataset.vol });
+  }
   // A slider being dragged (iPhone doesn't focus range inputs, so track the touch itself).
   let sliding = 0;
   const slideStart = ev => { if (ev.target && ev.target.type === "range") sliding = Date.now(); };
@@ -1650,7 +1663,7 @@
     const t = ev.target;
     if (t.dataset.bri) svc("light", "turn_on", { brightness_pct: +t.value }, { entity_id: t.dataset.bri.split(",") });
     if (t.dataset.seek) { np.drag = false; svc("media_player", "media_seek", { seek_position: +t.value }, { entity_id: t.dataset.seek }); }
-    if (t.dataset.vol) svc("media_player", "volume_set", { volume_level: +t.value / 100 }, { entity_id: t.dataset.vol });
+    if (t.dataset.vol) setVolumeSafely(t);
     if (t.id === "jreply") mem.set("jarvis.reply", t.value);
     if (t.dataset.roomFor) updateDevice(t.dataset.roomFor, { area_id: t.value || null }, t.value ? `Moved to ${(store.areas[t.value] || {}).name || "room"}` : "Removed from its room");
     if (pending) setTimeout(() => render(false), 50);
