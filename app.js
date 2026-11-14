@@ -454,16 +454,16 @@
 
       <div class="tiles">
         ${tile({ id: "lighting", title: "Lighting", ic: "bulb", tint: "sunset", href: "#lighting", on: lightsOn > 0, state: lights.length ? `<strong>${lightsOn} of ${lights.length}</strong> lights on` : '<span class="unavail">No lights found</span>' })}
+        ${tile({ id: "media", title: "Music", ic: "music", tint: "coral", href: "#media", on: playing.length > 0, state: playing.length ? `<strong>Playing</strong> · ${esc(playName(playing[0]))}${playing.length > 1 ? ` +${playing.length - 1}` : ""}` : `${all("media_player").filter(s => store.mode === "demo" || platformOf(s.entity_id) === "sonos").length} speakers` })}
+        ${tile({ id: "security", title: "Security", ic: "shield", tint: "turq", href: "#security", state: alarm ? `Alarm <strong>${esc(alarmLabel(alarm))}</strong> · ${cams.length} cameras` : `${cams.length} cameras` })}
         ${tile({ id: "climate", title: "Climate", ic: "snow", tint: "turq", href: "#climate", on: climates.some(s => s.state !== "off"), state: climates.length ? `<strong>${climates.filter(s => s.state !== "off").length}</strong> running` : `${C.alexaAC.length} units via Alexa` })}
         ${(() => { const g = find("gate"); return tile({ id: "gate", title: "Main Gate", ic: "gate", tint: "coral", href: "#gates", state: g ? (ok(g) ? "Position not reported" : "Offline") : '<span class="unavail">Not found in Home Assistant</span>', ctl: g && ok(g) ? '<button class="btn btn-sm btn-primary" data-action="gate">Open</button>' : "" }); })()}
-        ${tile({ id: "security", title: "Security", ic: "shield", tint: "turq", href: "#security", state: alarm ? `Alarm <strong>${esc(alarmLabel(alarm))}</strong> · ${cams.length} cameras` : `${cams.length} cameras` })}
         ${tile({ id: "energy", title: "Solar & Power", ic: "sun", tint: "sunset", href: "#energy", on: (e.pv || 0) > 50, state: e.pv === null && e.soc === null ? '<span class="unavail">Waiting for Victron readings</span>' : `<strong>${e.pv === null ? "—" : kw(e.pv) + " kW"}</strong> solar · battery ${e.soc === null ? "—" : Math.round(e.soc) + "%"}` })}
         ${switchTile("poolHouse", "poolhouse", "sunset", "#pool")}
         ${switchTile("jacuzzi", "jacuzzi", "coral", "#pool", "Heating")}
         ${switchTile("pump", "pump", "turq", "#pool", "Running")}
         ${switchTile("poolLights", "poollight", "turq", "#pool")}
         ${switchTile("fire", "fire", "sunset", "#lighting")}
-        ${tile({ id: "media", title: "Music", ic: "music", tint: "coral", href: "#media", on: playing.length > 0, state: playing.length ? `<strong>Playing</strong> · ${esc(playName(playing[0]))}${playing.length > 1 ? ` +${playing.length - 1}` : ""}` : `${all("media_player").filter(s => store.mode === "demo" || platformOf(s.entity_id) === "sonos").length} speakers` })}
         ${(() => { const p = st("switch.finca_party_mode"); const on = p && p.state === "on";
           return p || store.mode === "demo" ? tile({ id: "party", title: "Party", ic: "party", tint: "coral", href: "#media", on, state: on ? "<strong>Party on</strong> · lights & music" : "Disco lights and music", ctl: p ? sw(p.entity_id, on, "Party mode", "coral") : "" })
             : tile({ id: "jarvis", title: "Jarvis", ic: "mic", tint: "turq", href: "#jarvis", state: "Ask about the house" }); })()}
