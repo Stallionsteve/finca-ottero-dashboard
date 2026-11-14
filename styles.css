@@ -783,3 +783,16 @@ body { background: transparent; }
 #hud-bg .sweep path { fill: url(#none); fill: rgba(46, 230, 214, .07); }
 #hud-bg .sweep { transform-box: view-box; transform-origin: 360px 760px; animation: hudspin 8s linear infinite; }
 #hud-bg .pk { animation-duration: 7s; } #hud-bg .pk.b { animation-duration: 10s; } #hud-bg .pk.c { animation-duration: 8.5s; }
+/* Bigger ring gauges on tablets and wide screens (15 Nov) */
+@media (min-width: 700px) {
+  .gauge svg, .gauge .g-txt { max-width: 150px; }
+  .gauge .g-txt b { font-size: 28px; }
+  .gauge .g-txt b small { font-size: 13px; }
+  .gauge .g-txt span { font-size: 12px; }
+  .gauge em { font-size: 13px; }
+  .hud-gauges { gap: 18px; max-width: 620px; }
+}
+@media (min-width: 1100px) {
+  .gauge svg, .gauge .g-txt { max-width: 170px; }
+  .gauge .g-txt b { font-size: 32px; }
+}
