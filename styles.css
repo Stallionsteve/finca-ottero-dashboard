@@ -823,3 +823,13 @@ body { background: transparent; }
   .greet { font-size: 30px; }
   .hero::after { opacity: .24; }
 }
+/* Tablet banner (15 Nov, owner): bigger gauges filling the space, bigger sunset behind them */
+@media (min-width: 900px) {
+  .hero > .hud-gauges { margin-left: 22%; margin-top: -58px; max-width: 760px; gap: 26px; }
+  .gauge svg, .gauge .g-txt { max-width: 190px; }
+  .gauge .g-txt b { font-size: 36px; }
+  .gauge .g-txt b small { font-size: 15px; }
+  .gauge .g-txt span { font-size: 13px; }
+  .hero::after { width: 520px; height: 520px; right: 8%; bottom: -330px; opacity: .3; z-index: 0; }
+  .hero > * { position: relative; z-index: 1; }
+}
