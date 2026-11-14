@@ -109,6 +109,7 @@
     alexa: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5a5 5 0 1 1 7 0"/>',
     snow: '<path d="M12 2.5v19M4 7l16 10M4 17 20 7M9.5 4 12 6.5 14.5 4M9.5 20l2.5-2.5 2.5 2.5"/>',
     music: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+    radio: '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8l10-5"/><circle cx="15.5" cy="14" r="2.5"/><path d="M6.5 12.5h4M6.5 15.5h4"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -774,6 +775,14 @@
   }
 
   // Music search (14 Nov): type an artist/song/playlist, pick a speaker, play from Spotify via Music Assistant.
+  // Sonos favourites (radio stations, playlists saved in the Sonos app) and how each Music Assistant speaker maps to its Sonos twin.
+  const SONOS_OF = { "media_player.tv_room": "media_player.tv_room_tv_room", "media_player.move_2": "media_player.move", "media_player.bar": "media_player.bar_bar",
+    "media_player.bar_2": "media_player.bar_2_bar_2", "media_player.games_room": "media_player.games_room_games_room", "media_player.ganes_room2": "media_player.ganes_room2_ganes_room2",
+    "media_player.bedroom_sonos_connect_media_renderer": "media_player.bedroom_bedroom", "media_player.bedroom_2_sonos_play_5_media_renderer": "media_player.bedroom_2_bedroom_2" };
+  function sonosFavs() {
+    const src = (st("media_player.bar_bar") || st("media_player.tv_room_tv_room") || { attributes: {} }).attributes.source_list || [];
+    return src.filter(x => !/^(line-in|tv|audio component)/i.test(x));
+  }
   function musicSearch() {
     const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s)));
     if (!ma.length && store.mode !== "demo") return "";
@@ -791,6 +800,8 @@
         </div>
         <button class="btn btn-primary" type="submit">${icon("music")}Play</button>
       </form>
+      ${(() => { const fav = sonosFavs(); return fav.length ? `<div class="row-sub" style="margin-top:14px">Radio and Sonos favourites · plays on the speakers picked above</div>
+        <div class="seg-row fav-row">${fav.map(f => `<button type="button" class="seg-btn" data-fav="${esc(f)}">${icon(/radio|bbc|1xtra|wfmu|fm\b/i.test(f) ? "radio" : "music")}${esc(f)}</button>`).join("")}</div>` : ""; })()}
     </article>`;
   }
   // Now playing (14 Nov): big cover art, title, a progress bar you can drag to skip along, back / play-pause / next.
@@ -1367,6 +1378,17 @@
     group.then(() => svc("music_assistant", "play_media", { media_id: q, enqueue: "replace", radio_mode: true }, { entity_id: targets }))
       .then(() => { toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); $("#music-q").value = ""; })
       .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
+  });
+  document.addEventListener("click", ev => {
+    const f = ev.target.closest("[data-fav]"); if (!f) return;
+    const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => SONOS_OF[b.dataset.spk]).filter(Boolean);
+    if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
+    const lead = picked[0], fav = f.dataset.fav;
+    const stale = ((st(lead) || { attributes: {} }).attributes.group_members || []).filter(e => e !== lead && !picked.includes(e));
+    Promise.all(stale.map(e => svc("media_player", "unjoin", {}, { entity_id: e }).catch(() => null)))
+      .then(() => picked.length > 1 ? svc("media_player", "join", { group_members: picked.slice(1) }, { entity_id: lead }).catch(() => null) : null)
+      .then(() => svc("media_player", "select_source", { source: fav }, { entity_id: lead }))
+      .then(() => toast(`Playing ${fav}${picked.length > 1 ? ` on ${picked.length} speakers` : ""}`)).catch(() => null);
   });
   document.addEventListener("click", ev => {
     const b = ev.target.closest("#music-where [data-spk], #music-where [data-spk-all]"); if (!b) return;

@@ -570,3 +570,6 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
   .np-ctl { justify-content: center; flex-wrap: wrap; }
   .np-ctl input[type=range] { flex-basis: 100%; }
 }
+.fav-row { margin-top: 8px; }
+.fav-row .seg-btn { display: inline-flex; align-items: center; gap: 6px; }
+.fav-row .seg-btn svg { width: 16px; height: 16px; }
