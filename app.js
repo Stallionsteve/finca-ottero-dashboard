@@ -406,7 +406,9 @@
     const sunset = sunS && sunS.attributes.next_setting ? new Date(sunS.attributes.next_setting).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
     const alarm = all("alarm_control_panel")[0];
     const cams = cameraList();
-    const playing = all("media_player").filter(s => s.state === "playing");
+    // Only the real speakers (Sonos), not their copies in Music Assistant, Alexa or the Spotify link.
+    const playing = all("media_player").filter(s => s.state === "playing" && (store.mode === "demo" || platformOf(s.entity_id) === "sonos"));
+    const playName = s => s.entity_id === "media_player.tv_room_tv_room" ? (s.attributes.source === "TV" ? "Living room (TV sound)" : "Living room") : nm(s);
     const climates = all("climate").filter(ok);
     const date = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     const wTemp = weather && ok(weather) && weather.attributes.temperature !== undefined ? `${Math.round(weather.attributes.temperature)}°` : "";
@@ -442,7 +444,7 @@
         ${switchTile("pump", "pump", "turq", "#pool", "Running")}
         ${switchTile("poolLights", "poollight", "turq", "#pool")}
         ${switchTile("fire", "fire", "sunset", "#lighting")}
-        ${tile({ id: "media", title: "Music", ic: "music", tint: "coral", href: "#media", on: playing.length > 0, state: playing.length ? `<strong>Playing</strong> · ${esc(nm(playing[0]))}` : `${all("media_player").length} speakers` })}
+        ${tile({ id: "media", title: "Music", ic: "music", tint: "coral", href: "#media", on: playing.length > 0, state: playing.length ? `<strong>Playing</strong> · ${esc(playName(playing[0]))}${playing.length > 1 ? ` +${playing.length - 1}` : ""}` : `${all("media_player").filter(s => store.mode === "demo" || platformOf(s.entity_id) === "sonos").length} speakers` })}
         ${(() => { const p = st("switch.finca_party_mode"); const on = p && p.state === "on";
           return p || store.mode === "demo" ? tile({ id: "party", title: "Party", ic: "party", tint: "coral", href: "#media", on, state: on ? "<strong>Party on</strong> · lights & music" : "Disco lights and music", ctl: p ? sw(p.entity_id, on, "Party mode", "coral") : "" })
             : tile({ id: "jarvis", title: "Jarvis", ic: "mic", tint: "turq", href: "#jarvis", state: "Ask about the house" }); })()}
