@@ -775,14 +775,16 @@
   function musicSearch() {
     const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s)));
     if (!ma.length && store.mode !== "demo") return "";
-    const last = mem.get("music.speaker", "media_player.tv_room");
+    // Pick one or several speakers (14 Nov): tap to add or remove; several are grouped so they play in sync.
+    const picked = String(mem.get("music.speakers", mem.get("music.speaker", "media_player.tv_room"))).split(",").filter(Boolean);
     const names = { "media_player.tv_room": "Living room (Arc)" };
     return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
       <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
         <input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Music to play" autocomplete="off" enterkeyhint="go" style="flex:1 1 260px">
-        <select class="sel" id="music-where" aria-label="Speaker" style="flex:0 1 200px">
-          ${ma.map(s => `<option value="${s.entity_id}" ${s.entity_id === last ? "selected" : ""}>${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, ""))}</option>`).join("")}
-        </select>
+        <div class="seg-row" id="music-where" role="group" aria-label="Speakers (pick one or more)" style="flex:1 1 100%;flex-wrap:wrap">
+          ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
+          <button type="button" class="seg-btn" data-spk-all="1">All speakers</button>
+        </div>
         <button class="btn btn-primary" type="submit">${icon("music")}Play</button>
       </form>
     </article>`;
@@ -1305,11 +1307,29 @@
   document.addEventListener("submit", ev => {
     if (ev.target.id !== "music-search") return;
     ev.preventDefault();
-    const q = $("#music-q").value.trim(), where = $("#music-where").value; if (!q) return;
-    mem.set("music.speaker", where);
-    svc("music_assistant", "play_media", { media_id: q, enqueue: "replace", radio_mode: true }, { entity_id: where })
-      .then(() => { toast(`Playing ${q}`); $("#music-q").value = ""; })
+    const q = $("#music-q").value.trim(); if (!q) return;
+    const where = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => b.dataset.spk);
+    if (!where.length) { toast("Pick at least one speaker first"); return; }
+    mem.set("music.speakers", where.join(","));
+    // Several speakers: join the Sonos ones into one group (in sync), the TV just plays alongside.
+    // Only speakers that support grouping in Music Assistant can be joined (the bedroom DLNA renderers and the TV can't).
+    const sonos = where.filter(e => ((store.states[e] || {}).attributes || {}).supported_features & 524288), lead = sonos[0] || where[0];
+    const others = where.filter(e => e !== lead && !sonos.includes(e));
+    // First drop any speaker left in the lead's group from last time that isn't picked now.
+    const stale = (((store.states[lead] || {}).attributes || {}).group_members || []).filter(e => e !== lead && !where.includes(e));
+    const group = Promise.all(stale.map(e => svc("media_player", "unjoin", {}, { entity_id: e }).catch(() => null)))
+      .then(() => sonos.length > 1 ? svc("media_player", "join", { group_members: sonos.slice(1) }, { entity_id: lead }).catch(() => null) : null);
+    const targets = sonos.length > 1 ? [lead, ...others] : where;
+    group.then(() => svc("music_assistant", "play_media", { media_id: q, enqueue: "replace", radio_mode: true }, { entity_id: targets }))
+      .then(() => { toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); $("#music-q").value = ""; })
       .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
+  });
+  document.addEventListener("click", ev => {
+    const b = ev.target.closest("#music-where [data-spk], #music-where [data-spk-all]"); if (!b) return;
+    const btns = [...document.querySelectorAll("#music-where [data-spk]")];
+    if (b.dataset.spkAll) { const allOn = btns.every(x => x.getAttribute("aria-pressed") === "true"); btns.forEach(x => x.setAttribute("aria-pressed", String(!allOn))); }
+    else b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+    mem.set("music.speakers", btns.filter(x => x.getAttribute("aria-pressed") === "true").map(x => x.dataset.spk).join(","));
   });
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
