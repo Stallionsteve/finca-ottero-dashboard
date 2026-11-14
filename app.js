@@ -1790,6 +1790,20 @@
     H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; setTimeout(jarvisBoot, 400); } });
   }
 
+  // "System at work" background layer (15 Nov): drawn once, animated by CSS only (cheap for the phone).
+  (function hudBackground() {
+    if (document.getElementById("hud-bg")) return;
+    const el = document.createElement("div"); el.id = "hud-bg"; el.setAttribute("aria-hidden", "true");
+    const lines = ["M-20 210 H120 L170 260 H300", "M420 520 H330 L290 480 H180 L140 520 H-20", "M60 -20 V90 L110 140 V330", "M300 880 V760 L340 720 V600 L380 560 H460", "M-20 690 H70 L110 650 H210"];
+    el.innerHTML = `<svg viewBox="0 0 400 860" preserveAspectRatio="xMidYMid slice">
+      <g><circle class="rg r1" cx="360" cy="760" r="170"/><circle class="rg r2" cx="360" cy="760" r="130"/><circle class="rg r3" cx="360" cy="760" r="95"/><circle class="rg r4" cx="360" cy="760" r="60"/></g>
+      <g><circle class="rg r3" cx="30" cy="120" r="90"/><circle class="rg r1" cx="30" cy="120" r="64"/><circle class="rg r4" cx="30" cy="120" r="40"/></g>
+      ${lines.map(d => `<path class="ln" d="${d}"/>`).join("")}
+      ${lines.map((d, i) => `<path class="pk ${["", "b", "c", "", "b"][i]}" style="animation-delay:${-i * 2.3}s" d="${d}"/>`).join("")}
+      ${[[120, 210], [170, 260], [290, 480], [180, 480], [110, 140], [340, 720], [380, 560], [110, 650]].map(([x, y]) => `<circle class="nd" cx="${x}" cy="${y}" r="2.6"/>`).join("")}
+    </svg>`;
+    document.body.prepend(el);
+  })();
   function tick() { const d = new Date(); $("#clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
   const np = { drag: false };
   document.addEventListener("pointerdown", ev => { if (ev.target.id === "np-seek") np.drag = true; });
