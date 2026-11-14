@@ -757,12 +757,12 @@ input[type="range"] { touch-action: pan-y; } /* scrolling past a slider doesn't 
 html::after {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background-image:
-    linear-gradient(180deg, transparent, rgba(46, 230, 214, .05) 70%, rgba(46, 230, 214, .11) 97%, transparent),
-    linear-gradient(rgba(46, 230, 214, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(46, 230, 214, .045) 1px, transparent 1px);
+    linear-gradient(180deg, transparent, rgba(46, 230, 214, .07) 70%, rgba(46, 230, 214, .16) 97%, transparent),
+    linear-gradient(rgba(46, 230, 214, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(46, 230, 214, .08) 1px, transparent 1px);
   background-size: 100% 18vh, 46px 46px, 46px 46px;
   background-repeat: no-repeat, repeat, repeat;
   background-position: 0 -20vh, 0 0, 0 0;
-  -webkit-mask: radial-gradient(130% 90% at 50% 35%, #000 35%, transparent 90%); mask: radial-gradient(130% 90% at 50% 35%, #000 35%, transparent 90%);
+  -webkit-mask: radial-gradient(140% 100% at 50% 35%, #000 45%, transparent 95%); mask: radial-gradient(140% 100% at 50% 35%, #000 45%, transparent 95%);
   animation: hudscan 16s linear 3s infinite;
 }
 @keyframes hudscan { 0% { background-position: 0 -20vh, 0 0, 0 0; } 60%, 100% { background-position: 0 120vh, 0 0, 0 0; } }
