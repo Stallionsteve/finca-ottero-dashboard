@@ -356,7 +356,7 @@
         <div class="wx-i" title="${esc(String(d.condition || "").replace(/-/g, " "))}">${WX_ICON[d.condition] || "·"}</div>
         <div class="wx-t"><b>${Math.round(d.temperature)}°</b>${d.templow !== undefined ? `<span>${Math.round(d.templow)}°</span>` : ""}</div>
         <div class="wx-w">💨 ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small> km/h ${compass(d.wind_bearing)}</small></div>
-        ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r">💧 ${Math.round(d.precipitation_probability)}%</div>` : ""}
+        ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r">💧 ${Math.round(d.precipitation_probability)}%</div>` : (d.precipitation || 0) >= 0.3 ? `<div class="wx-r">💧 ${(+d.precipitation).toFixed(1)} mm</div>` : ""}
       </div>`).join("")}</div>
     </article>`;
   }
