@@ -1005,7 +1005,7 @@
     const s = cands.sort((a, b) => rank(a) - rank(b) || Date.parse(b.last_changed) - Date.parse(a.last_changed))[0];
     if (!s) return "";
     const a = s.attributes, playing = s.state === "playing", dur = a.media_duration || 0;
-    const pos = npPos(a, playing), pct = dur ? (pos / dur) * 100 : 0;
+    const pos = Math.floor((a.media_position || 0) / 5) * 5, pct = dur ? (pos / dur) * 100 : 0;   // ticker fills in the live second
     const where = (a.group_members || []).length > 1 ? `${nm(s)} + ${a.group_members.length - 1} more` : nm(s);
     const vol = Math.round((a.volume_level || 0) * 100);
     return `<article class="card nowplay" style="--tint:var(--coral);margin-bottom:16px">
@@ -1129,9 +1129,15 @@
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
   let lastHtml = "", lastView = "";
+  // A slider being dragged (iPhone doesn't focus range inputs, so track the touch itself).
+  let sliding = 0;
+  const slideStart = ev => { if (ev.target && ev.target.type === "range") sliding = Date.now(); };
+  const slideEnd = () => { if (sliding) { sliding = 0; if (pending) setTimeout(() => render(false), 350); } };
+  ["pointerdown", "touchstart", "mousedown"].forEach(t => document.addEventListener(t, slideStart, { passive: true, capture: true }));
+  ["pointerup", "pointercancel", "touchend", "touchcancel", "mouseup"].forEach(t => document.addEventListener(t, slideEnd, { passive: true, capture: true }));
   function render(scroll) {
     const a = document.activeElement;
-    if (!scroll && a && a.type === "range") { pending = true; return; }
+    if (!scroll && ((a && a.type === "range") || (sliding && Date.now() - sliding < 15000))) { pending = true; return; }
     pending = false;
     const v = current();
     renderNav(location.hash === "#jarvis" ? "jarvis" : v);
