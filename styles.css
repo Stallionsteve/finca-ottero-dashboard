@@ -573,3 +573,4 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 .fav-row { margin-top: 8px; }
 .fav-row .seg-btn { display: inline-flex; align-items: center; gap: 6px; }
 .fav-row .seg-btn svg { width: 16px; height: 16px; }
+.np-art img.fallback, .np img.fallback { object-fit: contain; padding: 10%; background: #0a0f24; }

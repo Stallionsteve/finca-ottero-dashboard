@@ -805,6 +805,12 @@
     </article>`;
   }
   // Now playing (14 Nov): big cover art, title, a progress bar you can drag to skip along, back / play-pause / next.
+  // No cover art, or it fails to load: show the Finca logo instead of a blank square.
+  const FALLBACK_ART = "icon-dome-512.png";
+  document.addEventListener("error", ev => {
+    const i = ev.target;
+    if (i.tagName === "IMG" && i.closest(".np-art, .np") && !i.dataset.fb) { i.dataset.fb = "1"; i.classList.add("fallback"); i.src = FALLBACK_ART; }
+  }, true);
   const artUrl = p => !p ? "" : /^https?:/.test(p) ? p : store.hassUrl + p;
   const fmtDur = x => { x = Math.max(0, Math.floor(x || 0)); return `${Math.floor(x / 60)}:${pad(x % 60)}`; };
   function npPos(a, playing) {
@@ -825,7 +831,7 @@
     const where = (a.group_members || []).length > 1 ? `${nm(s)} + ${a.group_members.length - 1} more` : nm(s);
     const vol = Math.round((a.volume_level || 0) * 100);
     return `<article class="card nowplay" style="--tint:var(--coral);margin-bottom:16px">
-      <div class="np-art">${a.entity_picture ? `<img src="${esc(artUrl(a.entity_picture))}" alt="">` : icon("music")}</div>
+      <div class="np-art"><img src="${a.entity_picture ? esc(artUrl(a.entity_picture)) : FALLBACK_ART}" alt="" ${a.entity_picture ? "" : 'class="fallback"'}></div>
       <div class="np-body">
         <div class="row-sub">${playing ? "Now playing" : "Paused"} · ${esc(where.replace(/ - Sonos.*$/, ""))}</div>
         <h2 class="np-title">${esc(a.media_title)}</h2>
@@ -857,7 +863,7 @@
       return `<article class="card">
         <div class="card-head"><span class="ico" style="--tint:var(--coral)">${icon("music")}</span>
           <div class="grow"><h3>${esc(prettyName(s))}</h3><div class="row-sub">${isLR(s) ? "TV surround · Arc, 2 Era 300, Sub" : `${esc(areaOf(s.entity_id) || "")}${areaOf(s.entity_id) ? " · " : ""}`}${isLR(s) ? " · " : ""}${esc(ok(s) ? s.state : "offline")}</div></div></div>
-        ${a.media_title ? `<div class="np">${a.entity_picture ? `<img src="${esc(artUrl(a.entity_picture))}" alt="">` : ""}<div class="t"><div><b>${esc(a.media_title)}</b></div><div class="row-sub">${esc(a.media_artist || a.media_album_name || "")}</div></div></div>` : ""}
+        ${a.media_title ? `<div class="np"><img src="${a.entity_picture ? esc(artUrl(a.entity_picture)) : FALLBACK_ART}" alt="" ${a.entity_picture ? "" : 'class="fallback"'}><div class="t"><div><b>${esc(a.media_title)}</b></div><div class="row-sub">${esc(a.media_artist || a.media_album_name || "")}</div></div></div>` : ""}
         ${ok(s) ? `<div class="media-ctl">
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause">${icon(s.state === "playing" ? "pause" : "play")}</button>
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_next_track" aria-label="Next track">${icon("next")}</button>
