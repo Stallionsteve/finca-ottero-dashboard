@@ -1186,7 +1186,17 @@
     const html = VIEWS[v]();
     // Nothing on this page changed (e.g. only a solar reading moved while on Security): leave it alone.
     if (!scroll && html === lastHtml && v === lastView) return;
+    const samePage = !scroll && v === lastView && $("#main").firstElementChild;
     lastHtml = html; lastView = v;
+    // Same page: update only what changed (15 Nov) — a full rebuild every few seconds made banners blink and restarted animations.
+    if (samePage) {
+      const tmp = document.createElement("main"); tmp.innerHTML = html;
+      try {
+        morphChildren($("#main"), tmp);
+        document.querySelectorAll("#main img[data-cam]:not([src])").forEach(img => { const cam = st(img.dataset.cam); if (cam && cam.attributes.entity_picture) img.src = store.hassUrl + cam.attributes.entity_picture; });
+        afterRender(false); return;
+      } catch (e) { /* fall back to a full rebuild below */ }
+    }
     const keep = {};
     document.querySelectorAll("#main img[data-cam]").forEach(img => { keep[img.dataset.cam] = img; });
     const mq = $("#music-q"), mqFocus = mq && document.activeElement === mq, mqVal = mq && mq.value;
@@ -1197,11 +1207,40 @@
       if (old && (old.naturalWidth || !old.complete)) { img.replaceWith(old); return; }  // loaded or still loading: keep it
       const cam = st(img.dataset.cam); if (cam && cam.attributes.entity_picture) img.src = store.hassUrl + cam.attributes.entity_picture;
     });
+    afterRender(scroll);
+  }
+  function afterRender(scroll) {
     updateBubble();
     $("#conn").textContent = (store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…") + (window.FINCA_VERSION ? ` · ${window.FINCA_VERSION.split(" ")[0]}` : "");
     $("#conn").title = window.FINCA_VERSION ? `App version ${window.FINCA_VERSION}` : "";
     $("#conn").className = "conn" + (store.mode === "demo" ? " demo" : "");
     if (scroll) window.scrollTo(0, 0);
+  }
+  // Minimal DOM morph: keeps existing elements (and their running animations, focus, loaded pictures), changes only
+  // attributes and text that differ, adds/removes children at the end.
+  function morphChildren(a, b) {
+    const ac = Array.from(a.childNodes), bc = Array.from(b.childNodes);
+    for (let i = 0; i < bc.length; i++) {
+      if (i < ac.length) morphNode(ac[i], bc[i]); else a.appendChild(bc[i]);
+    }
+    for (let i = ac.length - 1; i >= bc.length; i--) ac[i].remove();
+  }
+  function morphNode(a, b) {
+    if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
+    if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+    if (a.nodeType !== 1) return;
+    const cam = a.tagName === "IMG" && a.hasAttribute("data-cam");
+    if (cam && a.getAttribute("data-cam") !== b.getAttribute("data-cam")) { a.replaceWith(b); return; }
+    for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+    for (const at of Array.from(a.attributes)) if (!b.hasAttribute(at.name) && !(cam && at.name === "src") && !(a.tagName === "DETAILS" && at.name === "open")) a.removeAttribute(at.name);
+    if (a.tagName === "INPUT") {
+      const busy = document.activeElement === a || (a.type === "range" && sliding);
+      if (!busy && a.value !== (b.getAttribute("value") ?? "")) a.value = b.getAttribute("value") ?? "";
+      if (a.type === "checkbox") a.checked = b.hasAttribute("checked");
+      return;
+    }
+    if (a.tagName === "SELECT") { if (document.activeElement !== a) { morphChildren(a, b); const sel = b.querySelector("option[selected]"); if (sel) a.value = sel.value; } return; }
+    morphChildren(a, b);
   }
   // Readings change every second; redraw at most every 1.5 s.
   let renderTimer = 0, lastRender = 0;
