@@ -41,6 +41,10 @@ body::after {
   content: "";
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
+    /* holographic grid (15 Nov): part of the sky layer so phones always draw it */
+    linear-gradient(rgba(46, 230, 214, 0.11) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgba(46, 230, 214, 0.11) 1px, transparent 1px) 0 0 / 44px 44px,
+    radial-gradient(circle at 50% 30%, rgba(46, 230, 214, 0.07), transparent 55%),
     radial-gradient(120% 60% at 85% 108%, rgba(255, 92, 138, 0.22), transparent 60%),
     radial-gradient(90% 45% at 20% 110%, rgba(255, 154, 60, 0.16), transparent 60%),
     radial-gradient(70% 50% at 50% -10%, rgba(46, 230, 214, 0.08), transparent 70%),
@@ -753,22 +757,18 @@ input[type="range"] { touch-action: pan-y; } /* scrolling past a slider doesn't 
 }
 .tile.is-on { --hc: color-mix(in srgb, var(--sunset) 60%, transparent); }
 
-/* 3. Faint holographic grid behind everything, with a slow scan band (one layer under the content) */
+/* 3. Holographic scan band drifting down the screen (the grid itself is in body::after) */
 html::after {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(180deg, transparent, rgba(46, 230, 214, .07) 70%, rgba(46, 230, 214, .16) 97%, transparent),
-    linear-gradient(rgba(46, 230, 214, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(46, 230, 214, .08) 1px, transparent 1px);
-  background-size: 100% 18vh, 46px 46px, 46px 46px;
-  background-repeat: no-repeat, repeat, repeat;
-  background-position: 0 -20vh, 0 0, 0 0;
-  -webkit-mask: radial-gradient(140% 100% at 50% 35%, #000 45%, transparent 95%); mask: radial-gradient(140% 100% at 50% 35%, #000 45%, transparent 95%);
-  animation: hudscan 16s linear 3s infinite;
+  content: ""; position: fixed; left: 0; right: 0; top: 0; height: 22vh; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(46, 230, 214, .08) 70%, rgba(46, 230, 214, .2) 97%, transparent);
+  transform: translateY(-25vh); animation: hudscan 16s linear 3s infinite;
 }
-@keyframes hudscan { 0% { background-position: 0 -20vh, 0 0, 0 0; } 60%, 100% { background-position: 0 120vh, 0 0, 0 0; } }
+@keyframes hudscan { 0% { transform: translateY(-25vh); } 60%, 100% { transform: translateY(125vh); } }
 
 /* 4. Section headings: spaced HUD caps with a tick line */
 h2.section { display: flex; align-items: center; gap: 12px; color: color-mix(in srgb, var(--turq) 70%, var(--muted)); letter-spacing: .22em; font-size: 12px; }
 h2.section::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--turq); box-shadow: 0 0 8px var(--turq); flex: none; }
 h2.section::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--turq) 40%, transparent), transparent); }
 @media (prefers-reduced-motion: reduce) { html::after, .gauge .g-ticks { animation: none; } }
+/* Background fix (15 Nov): the page colour lives on <html> only, so the sky/holographic layer (body::after) isn't painted over. */
+body { background: transparent; }
