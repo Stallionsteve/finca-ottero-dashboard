@@ -388,7 +388,7 @@
       <article class="card" style="--tint:var(--turq)"><div class="card-head"><span class="ico">${icon("battery")}</span><div class="grow"><h3>Solar savings</h3><div class="row-sub">This month so far</div></div></div>
         <div class="fc-row"><div><div class="row-sub">Saved</div><div class="fc-n">${n(sav) === null ? "—" : `€${Math.round(n(sav))}`}</div></div>
           <div><div class="row-sub">Solar made</div><div class="fc-n">${big(n(month), "kWh")}</div></div></div>
-        <p class="row-sub" style="margin-top:10px">Worked out at €0.18 per kWh, an estimate until your electricity price is set.</p>
+        <p class="row-sub" style="margin-top:10px">Worked out at €0.164 per kWh: Octopus Energy “Relax” (€0.129) with electricity tax and 21% VAT.</p>
       </article></div>`;
   }
   function routineRow() {
