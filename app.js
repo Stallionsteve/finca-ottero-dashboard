@@ -554,7 +554,14 @@
 
   function viewLighting() {
     const areas = lightAreas();
-    const extra = Object.values(store.states).filter(s => domainOf(s.entity_id) === "switch" && !isHidden(s) && !/^switch\.(1000f13fd7_power|finca_)/.test(s.entity_id) && C.lightingSwitches.some(r => r.test(nm(s))));  // bedroom: the remembered-state switch, not the raw pulse relay
+    // Sonoff light switches (15 Nov): only the real switches — the remembered-state bedroom/ensuite switches (not the raw pulse
+    // relays) and the fire. Sonoff settings (Network Indicator, Inching Enable) and other config switches are hidden.
+    const extra = Object.values(store.states).filter(s => domainOf(s.entity_id) === "switch" && !isHidden(s)
+      && !/^switch\.(1000f13fd7_power|1000f1247e_power|finca_)/.test(s.entity_id) && !/_network_led$|_inching|_inchingenable/.test(s.entity_id)
+      && !((store.ents[s.entity_id] || {}).entity_category)
+      && (s.entity_id === "switch.ensuite_lights" || C.lightingSwitches.some(r => r.test(nm(s)))));
+    const swName = s => s.entity_id === "switch.ensuite_lights" ? "Ensuite lights" : nm(s).replace(/\s+/g, " ").replace(/^(.+?) \1$/i, "$1").trim();
+    const swArea = s => s.entity_id === "switch.ensuite_lights" ? "Master bedroom" : (areaOf(s.entity_id) || "");
     const sensors = all("binary_sensor").filter(s => ["motion", "occupancy"].includes(s.attributes.device_class) && /hue|motion/i.test(nm(s) + platformOf(s.entity_id)));
     const lightsOn = realLights().filter(s => s.state === "on").length;
     return `<section class="view">
@@ -568,10 +575,10 @@
       </div>
       ${(st("switch.finca_party_lights") || {}).state === "on" ? `<p class="note">${icon("music")}<span>Party lights are on. Pick your own music on the <a href="#media">Music</a> page.</span></p>` : ""}
       ${areas.length ? `<div class="grid g-2">${areas.map(areaCard).join("")}</div>` : '<p class="empty">No lights found in Home Assistant yet. Add the Philips Hue integration in Settings → Devices &amp; services.</p>'}
-      ${extra.length ? `<h2 class="section">Other lights · eWeLink</h2><div class="card">
+      ${extra.length ? `<h2 class="section">Wall switches (Sonoff)</h2><div class="card">
         ${extra.map(s => `<div class="row"><span class="ico" style="--tint:var(--sunset)">${icon(/fire/i.test(nm(s)) ? "fire" : "bulb")}</span>
-          <div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "On" : "Off") : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div>
-          ${ok(s) ? sw(s.entity_id, s.state === "on", nm(s), "sunset") : '<span class="pill warn">Offline</span>'}</div>`).join("")}
+          <div class="row-body"><div class="row-title">${esc(swName(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "On" : "Off") : "Offline"}${swArea(s) ? " · " + esc(swArea(s)) : ""}</div></div>
+          ${ok(s) ? sw(s.entity_id, s.state === "on", swName(s), "sunset") : '<span class="pill warn">Offline</span>'}</div>`).join("")}
       </div>` : ""}
       ${sensors.length ? `<h2 class="section">Motion sensors</h2><div class="grid g-2">
         ${sensors.map(s => `<div class="card"><div class="row" style="padding:0"><span class="ico">${icon("sensor")}</span>
