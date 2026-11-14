@@ -712,3 +712,17 @@ input[type="range"] { touch-action: pan-y; } /* scrolling past a slider doesn't 
 /* Header fix (14 Nov): on iPhone home-screen apps the sticky header was pushed below the status bar and covered the top of
    the page. It now sits at the very top and pads itself below the status bar instead. */
 .topbar { top: 0; padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+
+/* More: a panel that slides up from the bottom bar (15 Nov) */
+.more-panel { position: fixed; z-index: 24; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 10px); padding: 14px; border-radius: 22px;
+  background: rgba(16, 24, 54, 0.97); border: 1px solid var(--line); box-shadow: 0 -12px 40px -12px rgba(0, 0, 0, .6), 0 0 24px -10px var(--turq);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  transform: translateY(16px) scale(.98); opacity: 0; pointer-events: none; transition: transform .22s ease, opacity .18s ease; }
+.more-panel.open { transform: none; opacity: 1; pointer-events: auto; }
+.more-panel .more-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.more-panel .more-grid a { flex-direction: column; justify-content: center; gap: 6px; padding: 12px 4px; font-size: 12px; text-align: center; min-height: 72px; }
+.more-panel .more-grid a[aria-current="page"] { color: var(--turq); background: rgba(46, 230, 214, .12); }
+.nav .more-link[aria-expanded="true"] { color: var(--turq); }
+@media (min-width: 900px) { .more-panel { display: none; } }
+.more-open .jarvis-fab { opacity: 0; pointer-events: none; transition: opacity .15s; }

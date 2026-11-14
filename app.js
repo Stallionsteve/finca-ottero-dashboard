@@ -248,19 +248,19 @@
   const NAV = [
     { id: "home", label: "Home", icon: "home" },
     { id: "lighting", label: "Lighting", icon: "bulb" },
-    { id: "climate", label: "Climate", icon: "snow" },
+    { id: "media", label: "Music", icon: "music" },
     { id: "security", label: "Security", icon: "shield" },
+    { id: "climate", label: "Climate", icon: "snow", rail: true },
     { id: "gates", label: "Gates", icon: "gate", rail: true },
     { id: "energy", label: "Energy", icon: "sun", rail: true },
     { id: "pool", label: "Pool", icon: "poollight", rail: true },
-    { id: "media", label: "Music", icon: "music", rail: true },
     { id: "devices", label: "Devices", icon: "plus", rail: true },
     { id: "health", label: "Checks", icon: "battery", rail: true },
     { id: "jarvis", label: "Jarvis", icon: "mic", rail: true }
   ];
   function renderNav(cur) {
     $("#nav").innerHTML = NAV.map(n => `<a href="#${n.id}" class="${n.rail ? "rail-only" : ""}" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")
-      + `<a href="#more" class="more-link" data-action="more">${icon("more")}<span>More</span></a>`;
+      + `<a href="#more" class="more-link" data-action="more" aria-expanded="false" ${NAV.some(n => n.rail && n.id === cur) ? 'aria-current="page"' : ""}>${icon("more")}<span>More</span></a>`;
   }
 
   // ---------- views ----------
@@ -1337,11 +1337,25 @@
   }
 
   function moreSheet() {
-    sheet(`<h2>More</h2><div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-nav">${icon(n.icon)}${n.label}</a>`).join("")}</div>
-      <div class="share-box"><div><b>Share the app</b><small>${esc(SHARE_URL)}<br>Works on the home Wi-Fi. Each person signs in with their own Home Assistant login.</small></div>
-        <button class="btn btn-primary" data-action="share-app">${icon("share")}Share</button></div>
-      <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`);
+    let p = $("#more-panel");
+    if (p && p.classList.contains("open")) { closeMore(); return; }
+    if (!p) { p = document.createElement("div"); p.id = "more-panel"; p.className = "more-panel"; document.body.appendChild(p); }
+    const cur = current();
+    p.innerHTML = `<div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-more" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")}
+        <a href="#more" data-action="share-app">${icon("share")}<span>Share app</span></a></div>`;
+    requestAnimationFrame(() => p.classList.add("open")); document.body.classList.add("more-open");
+    const ml = document.querySelector(".more-link"); if (ml) ml.setAttribute("aria-expanded", "true");
   }
+  function closeMore() {
+    const p = $("#more-panel"); if (p) p.classList.remove("open"); document.body.classList.remove("more-open");
+    const ml = document.querySelector(".more-link"); if (ml) ml.setAttribute("aria-expanded", "false");
+  }
+  document.addEventListener("click", ev => {
+    const p = $("#more-panel"); if (!p || !p.classList.contains("open")) return;
+    if (ev.target.closest("#more-panel a")) { setTimeout(closeMore, 50); return; }
+    if (!ev.target.closest("#more-panel") && !ev.target.closest(".more-link")) closeMore();
+  }, true);
+  window.addEventListener("hashchange", closeMore);
   const SHARE_URL = "https://fincaottero.duckdns.org/local/finca-ottero/index.html";
   async function shareApp() {
     try { if (navigator.share) { await navigator.share({ title: "Finca Ottero", text: "Finca Ottero home app (home Wi-Fi). Open it, sign in, then Add to Home Screen.", url: SHARE_URL }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
