@@ -809,3 +809,17 @@ body { background: transparent; }
   .wx-sub { font-size: 15px; }
   .wx-more { font-size: 13px; }
 }
+/* Tablet banner: more see-through and a touch smaller (15 Nov) */
+@media (min-width: 900px) {
+  .hero { padding-block: 12px; gap: 8px 20px; background:
+    linear-gradient(var(--hc), var(--hc)) left 12px top 12px / 16px 1.5px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) left 12px top 12px / 1.5px 16px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right 12px bottom 12px / 16px 1.5px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right 12px bottom 12px / 1.5px 16px no-repeat,
+    linear-gradient(160deg, rgba(30, 40, 80, .38), rgba(18, 26, 56, .28)); }
+  .hero > .hud-gauges { margin-top: -62px; }
+  .gauge svg, .gauge .g-txt { max-width: 136px; }
+  .gauge .g-txt b { font-size: 26px; }
+  .greet { font-size: 30px; }
+  .hero::after { opacity: .24; }
+}
