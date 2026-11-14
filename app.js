@@ -109,6 +109,7 @@
     alexa: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5a5 5 0 1 1 7 0"/>',
     snow: '<path d="M12 2.5v19M4 7l16 10M4 17 20 7M9.5 4 12 6.5 14.5 4M9.5 20l2.5-2.5 2.5 2.5"/>',
     music: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+    tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
     next: '<path d="M5 5v14l10-7zM18.5 5v14"/>',
@@ -777,12 +778,14 @@
     if (!ma.length && store.mode !== "demo") return "";
     // Pick one or several speakers (14 Nov): tap to add or remove; several are grouped so they play in sync.
     const picked = String(mem.get("music.speakers", mem.get("music.speaker", "media_player.tv_room"))).split(",").filter(Boolean);
-    const names = { "media_player.tv_room": "Living room (Arc)" };
+    const names = { "media_player.tv_room": "Living room" };
+    // The Arc carries the whole TV surround (2 Era 300 + Sub are bonded to it), so it leads the list as "Living room".
+    ma.sort((a, b) => (b.entity_id === "media_player.tv_room") - (a.entity_id === "media_player.tv_room"));
     return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
       <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
         <input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Music to play" autocomplete="off" enterkeyhint="go" style="flex:1 1 260px">
         <div class="seg-row" id="music-where" role="group" aria-label="Speakers (pick one or more)" style="flex:1 1 100%;flex-wrap:wrap">
-          ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
+          ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
           <button type="button" class="seg-btn" data-spk-all="1">All speakers</button>
         </div>
         <button class="btn btn-primary" type="submit">${icon("music")}Play</button>
@@ -796,13 +799,14 @@
     const speakers_ = all_mp.filter(s => platformOf(s.entity_id) === "sonos");
     const tvs = all_mp.filter(s => /65pus|philips|tv$/i.test(nm(s)) && platformOf(s.entity_id) !== "sonos" && platformOf(s.entity_id) !== "music_assistant");
     const tv = tvs.find(ok) || tvs[0];
-    const players = [...speakers_.sort((a, b) => nm(a).localeCompare(nm(b))), ...(tv ? [tv] : [])];
-    const prettyName = s => s === tv ? "TV" : s.entity_id === "media_player.tv_room_tv_room" ? "Living room (Arc)" : nm(s);
+    const players = [...speakers_.sort((a, b) => (b.entity_id === "media_player.tv_room_tv_room") - (a.entity_id === "media_player.tv_room_tv_room") || nm(a).localeCompare(nm(b))), ...(tv ? [tv] : [])];
+    const prettyName = s => s === tv ? "TV" : isLR(s) ? "Living room" : nm(s);
+    const isLR = s => s.entity_id === "media_player.tv_room_tv_room";
     const card = s => {
       const a = s.attributes, vol = Math.round((a.volume_level || 0) * 100);
       return `<article class="card">
         <div class="card-head"><span class="ico" style="--tint:var(--coral)">${icon("music")}</span>
-          <div class="grow"><h3>${esc(prettyName(s))}</h3><div class="row-sub">${esc(areaOf(s.entity_id) || "")}${areaOf(s.entity_id) ? " · " : ""}${esc(ok(s) ? s.state : "offline")}</div></div></div>
+          <div class="grow"><h3>${esc(prettyName(s))}</h3><div class="row-sub">${isLR(s) ? "TV surround · Arc, 2 Era 300, Sub" : `${esc(areaOf(s.entity_id) || "")}${areaOf(s.entity_id) ? " · " : ""}`}${isLR(s) ? " · " : ""}${esc(ok(s) ? s.state : "offline")}</div></div></div>
         ${a.media_title ? `<div class="np">${a.entity_picture ? `<img src="${esc(store.hassUrl + a.entity_picture)}" alt="">` : ""}<div class="t"><div><b>${esc(a.media_title)}</b></div><div class="row-sub">${esc(a.media_artist || a.media_album_name || "")}</div></div></div>` : ""}
         ${ok(s) ? `<div class="media-ctl">
           <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause">${icon(s.state === "playing" ? "pause" : "play")}</button>
