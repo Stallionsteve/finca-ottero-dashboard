@@ -110,6 +110,7 @@
     snow: '<path d="M12 2.5v19M4 7l16 10M4 17 20 7M9.5 4 12 6.5 14.5 4M9.5 20l2.5-2.5 2.5 2.5"/>',
     music: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
     radio: '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8l10-5"/><circle cx="15.5" cy="14" r="2.5"/><path d="M6.5 12.5h4M6.5 15.5h4"/>',
+    plane: '<path d="M10.5 21l2-7-6 0-2 3-2-1 1.5-4L2.5 8l2-1 2 3h6l-2-7 2.5 0 4.5 7h4a1.5 1.5 0 0 1 0 3h-4l-4.5 7z"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -324,6 +325,69 @@
     return btns.length ? `<div class="quick" aria-label="Most used">${btns.join("")}</div>` : "";
   }
 
+
+  // ---- 14 Nov extras: 5-day weather with wind, solar forecast + savings, holiday mode, good morning / goodnight ----
+  const wx = { at: 0, days: null, busy: false };
+  async function loadForecast() {
+    const w = all("weather")[0]; if (!w || wx.busy || Date.now() - wx.at < 30 * 60000) return;
+    wx.busy = true;
+    try {
+      if (store.mode === "demo") {
+        const c = ["sunny", "partlycloudy", "sunny", "rainy", "cloudy", "sunny"];
+        wx.days = c.map((x, i) => ({ datetime: new Date(Date.now() + i * 864e5).toISOString(), condition: x, temperature: 22 - i, templow: 13 + (i % 3), wind_speed: 12 + i * 4, wind_bearing: 90 + i * 40, precipitation_probability: x === "rainy" ? 70 : 5 }));
+      } else {
+        const r = await store.conn.sendMessagePromise({ type: "call_service", domain: "weather", service: "get_forecasts", service_data: { type: "daily" }, target: { entity_id: w.entity_id }, return_response: true });
+        wx.days = (((r.response || {})[w.entity_id] || {}).forecast) || [];
+      }
+      wx.at = Date.now(); lastHtml = ""; render(false);
+    } catch { wx.at = Date.now() - 25 * 60000; } finally { wx.busy = false; }
+  }
+  const WX_ICON = { sunny: "☀️", "clear-night": "🌙", partlycloudy: "⛅", cloudy: "☁️", rainy: "🌦️", pouring: "🌧️", "lightning-rainy": "⛈️", lightning: "🌩️", fog: "🌫️", windy: "💨", "windy-variant": "💨", snowy: "❄️", "snowy-rainy": "🌨️", hail: "🌨️" };
+  const compass = b => b === undefined || b === null ? "" : ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(((+b % 360) + 360) % 360 / 45) % 8];
+  function weatherCard() {
+    loadForecast();
+    const days = (wx.days || []).slice(0, 5); if (!days.length) return "";
+    const w = all("weather")[0], a = (w && w.attributes) || {};
+    return `<article class="card wx" style="--tint:var(--turq)">
+      <div class="card-head"><span class="ico">${icon("sun")}</span><div class="grow"><h3>Weather</h3>
+        <div class="row-sub">${a.temperature !== undefined ? `Now ${Math.round(a.temperature)}°C` : ""}${a.wind_speed !== undefined ? ` · wind ${Math.round(a.wind_speed)} km/h ${compass(a.wind_bearing)}` : ""}${a.humidity !== undefined ? ` · humidity ${Math.round(a.humidity)}%` : ""}</div></div></div>
+      <div class="wx-days">${days.map((d, i) => `<div class="wx-day">
+        <div class="wx-d">${i === 0 ? "Today" : new Date(d.datetime).toLocaleDateString("en-GB", { weekday: "short" })}</div>
+        <div class="wx-i" title="${esc(String(d.condition || "").replace(/-/g, " "))}">${WX_ICON[d.condition] || "·"}</div>
+        <div class="wx-t"><b>${Math.round(d.temperature)}°</b>${d.templow !== undefined ? `<span>${Math.round(d.templow)}°</span>` : ""}</div>
+        <div class="wx-w">💨 ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small> km/h ${compass(d.wind_bearing)}</small></div>
+        ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r">💧 ${Math.round(d.precipitation_probability)}%</div>` : ""}
+      </div>`).join("")}</div>
+    </article>`;
+  }
+  function solarForecastCard() {
+    const today = st("sensor.energy_production_today"), tom = st("sensor.energy_production_tomorrow"), peak = st("sensor.power_highest_peak_time_today");
+    const rem = st("sensor.energy_production_today_remaining"), month = st("sensor.solar_room_fronius_symo_17_5_3_m_id_20_finca_solar_energy_this_month"), sav = st("sensor.finca_solar_savings_this_month");
+    if (!today && !month && store.mode !== "demo") return "";
+    const n = x => x && ok(x) && !isNaN(+x.state) ? +x.state : null;
+    const pk = peak && ok(peak) ? new Date(peak.state) : null;
+    const best = pk && !isNaN(pk) ? `${pad(Math.max(0, pk.getHours() - 2))}:00–${pad(Math.min(23, pk.getHours() + 2))}:00` : null;
+    const big = (v, u) => v === null ? "—" : `${Math.round(v)}<small> ${u}</small>`;
+    return `<div class="grid g-2">
+      <article class="card" style="--tint:var(--sunset)"><div class="card-head"><span class="ico">${icon("sun")}</span><div class="grow"><h3>Solar forecast</h3><div class="row-sub">What the panels could make (Forecast.Solar)</div></div></div>
+        <div class="fc-row"><div><div class="row-sub">Today</div><div class="fc-n">${big(n(today), "kWh")}</div>${n(rem) !== null ? `<div class="row-sub">${Math.round(n(rem))} kWh still to come</div>` : ""}</div>
+          <div><div class="row-sub">Tomorrow</div><div class="fc-n">${big(n(tom), "kWh")}</div></div></div>
+        ${best ? `<p class="row-sub" style="margin-top:10px">☀️ Best hours for the jacuzzi heater, washing machine or extra air con: <b style="color:var(--sand)">${best}</b></p>` : ""}
+      </article>
+      <article class="card" style="--tint:var(--turq)"><div class="card-head"><span class="ico">${icon("battery")}</span><div class="grow"><h3>Solar savings</h3><div class="row-sub">This month so far</div></div></div>
+        <div class="fc-row"><div><div class="row-sub">Saved</div><div class="fc-n">${n(sav) === null ? "—" : `€${Math.round(n(sav))}`}</div></div>
+          <div><div class="row-sub">Solar made</div><div class="fc-n">${big(n(month), "kWh")}</div></div></div>
+        <p class="row-sub" style="margin-top:10px">Worked out at €0.18 per kWh, an estimate until your electricity price is set.</p>
+      </article></div>`;
+  }
+  function routineRow() {
+    const h = st("switch.finca_holiday_mode"); const hol = h && h.state === "on";
+    return `<div class="routine-row">
+      <button class="btn" data-askgo="Good morning Jarvis">${icon("sun")}Good morning</button>
+      <button class="btn" data-askgo="Goodnight Jarvis">${icon("moon")}Goodnight</button>
+      ${h || store.mode === "demo" ? `<button class="btn ${hol ? "btn-primary" : ""}" ${h ? `data-toggle="${h.entity_id}"` : ""} aria-pressed="${hol}">${icon("plane")}${hol ? "Holiday mode on" : "Holiday mode"}</button>` : ""}
+    </div>`;
+  }
   function viewHome() {
     const e = energy();
     const lights = realLights(), lightsOn = lights.filter(s => s.state === "on").length;
@@ -352,7 +416,9 @@
         </div>
       </div>
 
+      ${routineRow()}
       ${quickCard()}
+      ${weatherCard()}
 
       <div class="tiles">
         ${tile({ id: "lighting", title: "Lighting", ic: "bulb", tint: "sunset", href: "#lighting", on: lightsOn > 0, state: lights.length ? `<strong>${lightsOn} of ${lights.length}</strong> lights on` : '<span class="unavail">No lights found</span>' })}
@@ -728,6 +794,7 @@
           ${stat("Grid", "", e.grid === null ? null : kw(e.grid), "kW", e.grid === null ? "No reading" : e.grid > 30 ? "Importing" : e.grid < -30 ? "Exporting" : "Idle")}
         </div>
       </div>
+      ${solarForecastCard()}
       ${(() => { const items = [["automation.finca_announce_battery_low", "Battery at 10 %"], ["automation.finca_announce_grid_failure", "Grid goes down / comes back"]].map(([id, label]) => [st(id), label]).filter(([x]) => x);
         return items.length ? `<article class="card"><div class="card-head"><span class="ico" style="--tint:var(--sunset)">${icon("alexa")}</span><div class="grow"><h3>Spoken power alerts</h3><div class="row-sub">On every Alexa and Sonos speaker, 11:00–21:00</div></div></div>
           ${items.map(([x, label]) => `<div class="row"><div class="row-body"><div class="row-title">${label}</div><div class="row-sub">${x.attributes.last_triggered ? "Last " + ago(x.attributes.last_triggered) : "Not triggered yet"}</div></div>${sw(x.entity_id, x.state === "on", label, "sunset")}</div>`).join("")}</article>` : ""; })()}
@@ -1283,12 +1350,13 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
     if (!t) return;
     const d = t.dataset;
     try { recordUse(usageKey(d, t)); } catch { /* never block the button */ }
     if (t.id === "jmic") { listen(); return; }
     if (d.ask) { ask(d.ask); return; }
+    if (d.askgo) { location.hash = "#jarvis"; setTimeout(() => ask(d.askgo), 400); return; }
     if (d.updNow) { svc("script", "turn_on", { variables: { entity: d.updNow } }, { entity_id: "script.finca_install_update" }).then(() => toast("Backing up, then updating. You'll get a message when it's checked.")).catch(() => {}); laterUpdates.add(d.updNow + ((st(d.updNow) || {}).attributes || {}).latest_version); updateBubble(); return; }
     if (d.updLater) { laterUpdates.add(d.updLater); updateBubble(); toast("OK, I'll ask again next time the app opens."); return; }
     if (d.updSkip) { svc("update", "skip", {}, { entity_id: d.updSkip }).then(() => toast("Ignored. You'll hear about the next version.")).catch(() => {}); return; }
