@@ -683,3 +683,21 @@ details.how > .note { margin-top: 8px; }
 .share-box > div { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .share-box small { color: var(--muted); font-size: 12px; line-height: 1.4; word-break: break-all; }
 .share-box .btn { flex: none; }
+
+/* Jarvis start-up greeting (14 Nov) */
+.jboot { position: fixed; inset: 0; z-index: 90; display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center;
+  background: radial-gradient(circle at 50% 42%, rgba(46, 230, 214, .16), rgba(10, 15, 36, .94) 60%); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: jbootIn .35s ease-out; cursor: pointer; padding: 24px; }
+.jboot.out { opacity: 0; transition: opacity .4s ease; }
+.jboot-ring { position: relative; width: 150px; height: 150px; display: grid; place-items: center; margin-bottom: 14px; }
+.jboot-ring span { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(46, 230, 214, .55); }
+.jboot-ring span:nth-child(1) { border-style: dashed; animation: hudspin 6s linear infinite; }
+.jboot-ring span:nth-child(2) { inset: 16px; border-color: rgba(46, 230, 214, .35); border-top-color: var(--turq); animation: hudspin 1.6s linear infinite reverse; }
+.jboot-ring span:nth-child(3) { inset: 36px; background: radial-gradient(circle, rgba(46, 230, 214, .5), rgba(18, 40, 110, .9) 70%); box-shadow: 0 0 40px rgba(46, 230, 214, .55); border: 0; }
+.jboot-ring b { position: relative; font-family: var(--font-display); letter-spacing: .3em; font-size: 13px; color: #e8fbff; text-shadow: 0 0 8px var(--turq); padding-left: .3em; }
+.jboot-hi { margin: 0; font-size: 26px; font-weight: 600; color: var(--sand); }
+.jboot-sub { margin: 0; color: var(--turq); font-size: 15px; letter-spacing: .02em; }
+.jboot-st { margin: 8px 0 0; color: var(--muted); font-family: var(--font-data); font-size: 13px; }
+@keyframes jbootIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+.routine-row { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+@media (max-width: 430px) { .routine-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

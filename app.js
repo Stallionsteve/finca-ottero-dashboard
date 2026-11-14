@@ -117,6 +117,7 @@
     repeat: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
     repeat1: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M11.5 10.5 13 9.5v5"/>',
     share: '<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+    film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -394,8 +395,25 @@
     return `<div class="routine-row">
       <button class="btn" data-askgo="Good morning Jarvis">${icon("sun")}Morning</button>
       <button class="btn" data-askgo="Goodnight Jarvis">${icon("moon")}Goodnight</button>
+      ${(() => { const mv = st("switch.finca_movie_mode"); if (!mv && store.mode !== "demo") return ""; const on = mv && mv.state === "on";
+        return `<button class="btn ${on ? "btn-primary" : ""}" ${mv ? `data-toggle="${mv.entity_id}"` : ""} aria-pressed="${!!on}">${icon("film")}${on ? "Movie on" : "Movie"}</button>`; })()}
       ${h || store.mode === "demo" ? `<button class="btn ${hol ? "btn-primary" : ""}" ${h ? `data-toggle="${h.entity_id}"` : ""} aria-pressed="${hol}">${icon("plane")}${hol ? "Holiday on" : "Holiday"}</button>` : ""}
     </div>`;
+  }
+  // Jarvis start-up greeting (14 Nov): once per app session, ~2 s, tap to skip. Reads live values; nothing invented.
+  function jarvisBoot() {
+    try { if (sessionStorage.getItem("finca.booted")) return; sessionStorage.setItem("finca.booted", "1"); } catch { /* private mode: show anyway */ }
+    const h = new Date().getHours(), part = h < 5 ? "evening" : h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
+    const e = energy(), t = st("sensor.hue_motion_sensor_3_temperature"), a = all("alarm_control_panel")[0];
+    const bits = [e.soc !== null ? `Battery ${Math.round(e.soc)}%` : "", t && ok(t) && !isNaN(+t.state) ? `${Math.round(+t.state)}°C inside` : "",
+      a && ok(a) ? `Alarm ${a.state === "disarmed" ? "off" : "set"}` : ""].filter(Boolean);
+    const lines = ["All systems online.", "Systems nominal. The house behaved itself.", "Online and at your service.", "Diagnostics complete. Nothing is on fire."];
+    const el = document.createElement("div"); el.className = "jboot"; el.setAttribute("role", "status");
+    el.innerHTML = `<div class="jboot-ring"><span></span><span></span><span></span><b>JARVIS</b></div>
+      <p class="jboot-hi">Good ${part}, sir.</p><p class="jboot-sub">${lines[Math.floor(Math.random() * lines.length)]}</p>
+      ${bits.length ? `<p class="jboot-st">${bits.map(esc).join(" · ")}</p>` : ""}`;
+    const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 450); };
+    el.addEventListener("click", close); document.body.appendChild(el); setTimeout(close, 2300);
   }
   function viewHome() {
     const e = energy();
@@ -1034,7 +1052,9 @@
         ${(() => { const p = st("switch.finca_party_mode"); if (!p) return ""; const on = p.state === "on";
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}
         ${(() => { const r = st("switch.finca_romantic_mode"); if (!r) return ""; const on = r.state === "on";
-          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${r.entity_id}">${icon("heart")}${on ? "End romantic mode" : "Romantic mode"}</button>`; })()}</div>
+          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${r.entity_id}">${icon("heart")}${on ? "End romantic mode" : "Romantic mode"}</button>`; })()}
+        ${(() => { const mv = st("switch.finca_movie_mode"); if (!mv) return ""; const on = mv.state === "on";
+          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${mv.entity_id}">${icon("film")}${on ? "End movie mode" : "Movie mode"}</button>`; })()}</div>
       ${nowPlaying()}
       ${musicSearch()}
       ${players.length ? `<div class="grid g-2">${players.map(card).join("")}</div>` : '<p class="empty">No speakers found.</p>'}
@@ -1674,7 +1694,8 @@
     devices.forEach(d => { store.devices[d.id] = d; });
     ents.forEach(e => { store.ents[e.entity_id] = e; });
     try { const p = await conn.sendMessagePromise({ type: "assist_pipeline/pipeline/list" }); store.pipelines = p.pipelines; store.preferredPipeline = p.preferred_pipeline; } catch { /* Assist not set up */ }
-    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); });
+    let booted = false;
+    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; setTimeout(jarvisBoot, 400); } });
   }
 
   function tick() { const d = new Date(); $("#clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
@@ -1709,6 +1730,7 @@
     Demo.load(store, scheduleRender);
     store.online = true;
     render(true);
+    setTimeout(jarvisBoot, 400);
     if (location.hash === "#jarvis") openJarvis();
   }
 
