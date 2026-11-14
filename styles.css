@@ -796,3 +796,16 @@ body { background: transparent; }
   .gauge svg, .gauge .g-txt { max-width: 170px; }
   .gauge .g-txt b { font-size: 32px; }
 }
+/* Tablet banner tighter (15 Nov): gauges sit beside the greeting, less empty space; weather button a little bigger */
+@media (min-width: 900px) {
+  .hero { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "top top" "gauges chips"; gap: 12px 20px; padding-block: 18px; align-items: center; }
+  .hero > .hero-top { grid-area: top; }
+  .hero > .hud-gauges { grid-area: gauges; justify-self: start; margin-top: -54px; margin-left: 30%; }
+  .hero > .status-row { grid-area: chips; flex-direction: column; align-items: flex-end; align-self: end; }
+  .hero::after { width: 240px; height: 240px; bottom: -110px; }
+  .wx-btn { padding: 14px 20px; }
+  .wx-btn b { font-size: 34px; }
+  .wx-emoji { font-size: 28px; }
+  .wx-sub { font-size: 15px; }
+  .wx-more { font-size: 13px; }
+}
