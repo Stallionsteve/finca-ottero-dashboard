@@ -867,8 +867,14 @@
         </div>
         <button class="btn btn-primary" type="submit">${icon("music")}Play</button>
       </form>
-      ${(() => { const fav = sonosFavs(); return fav.length ? `<div class="row-sub" style="margin-top:14px">Radio and Sonos favourites · plays on the speakers picked above</div>
-        <div class="seg-row fav-row">${fav.map(f => `<button type="button" class="seg-btn" data-fav="${esc(f)}">${icon(/radio|bbc|1xtra|wfmu|fm\b/i.test(f) ? "radio" : "music")}${esc(f)}</button>`).join("")}</div>` : ""; })()}
+      ${(() => { const fav = sonosFavs(); if (!fav.length) return "";
+        const isRadio = f => /radio|bbc|1xtra|wfmu|\bfm\b|talk|capital|heart|smooth|apple music 1/i.test(f);
+        const opt = f => `<option value="${esc(f)}">${esc(f)}</option>`;
+        return `<div class="fav-pick"><select class="sel" id="fav-sel" aria-label="Radio and Sonos favourites">
+          <option value="">Radio &amp; Sonos favourites…</option>
+          <optgroup label="Radio">${fav.filter(isRadio).map(opt).join("")}</optgroup>
+          <optgroup label="Playlists and songs">${fav.filter(f => !isRadio(f)).map(opt).join("")}</optgroup>
+        </select><button type="button" class="btn" data-favgo="1">${icon("radio")}Play</button></div>`; })()}
     </article>`;
   }
   // Now playing (14 Nov): big cover art, title, a progress bar you can drag to skip along, back / play-pause / next.
@@ -1454,10 +1460,11 @@
       .catch(() => toast(`Couldn't find "${q}" on Spotify. Check Spotify in Music Assistant.`));
   });
   document.addEventListener("click", ev => {
-    const f = ev.target.closest("[data-fav]"); if (!f) return;
+    const f = ev.target.closest("[data-favgo]"); if (!f) return;
+    const sel = $("#fav-sel"); if (!sel || !sel.value) { toast("Choose a station first"); return; }
     const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => SONOS_OF[b.dataset.spk]).filter(Boolean);
     if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
-    const lead = picked[0], fav = f.dataset.fav;
+    const lead = picked[0], fav = sel.value;
     const stale = ((st(lead) || { attributes: {} }).attributes.group_members || []).filter(e => e !== lead && !picked.includes(e));
     Promise.all(stale.map(e => svc("media_player", "unjoin", {}, { entity_id: e }).catch(() => null)))
       .then(() => picked.length > 1 ? svc("media_player", "join", { group_members: picked.slice(1) }, { entity_id: lead }).catch(() => null) : null)

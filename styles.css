@@ -589,3 +589,5 @@ input.temp-range::-moz-range-track { background: linear-gradient(90deg, #ffb46b,
 .fc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
 .fc-n { font-family: var(--font-data); font-size: 1.9rem; color: var(--sand); }
 .fc-n small { font-size: .9rem; color: var(--muted); }
+.fav-pick { display: flex; gap: 10px; margin-top: 14px; }
+.fav-pick .sel { flex: 1; min-width: 0; }
