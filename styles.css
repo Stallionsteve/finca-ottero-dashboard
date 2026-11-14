@@ -833,3 +833,5 @@ body { background: transparent; }
   .hero::after { width: 520px; height: 520px; right: 8%; bottom: -330px; opacity: .3; z-index: 0; }
   .hero > * { position: relative; z-index: 1; }
 }
+@media (min-width: 900px) { .hero::after { right: auto; left: -60px; width: 440px; height: 440px; bottom: -300px; } }
+@media (min-width: 900px) { .hero::after { left: -110px; width: 360px; height: 360px; bottom: -230px; } }
