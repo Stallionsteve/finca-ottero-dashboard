@@ -1796,27 +1796,25 @@
   });
   // Music already playing (15 Nov): tapping a speaker on joins it to what's playing straight away; tapping off takes it out.
   function liveRegroup(changed) {
-    const canGroup = e => (((store.states[e] || {}).attributes || {}).supported_features || 0) & 524288;
+    // Uses the Sonos speakers themselves for grouping (Music Assistant's copy can show "paused" while the Sonos is playing).
+    const sonosOf = e => SONOS_OF[e] || e;
+    const playing = e => { const a = st(e), b = st(sonosOf(e)); return (a && a.state === "playing") || (b && b.state === "playing"); };
     const ma = [...document.querySelectorAll("#music-where [data-spk]")].map(x => x.dataset.spk);
-    const lead = ma.map(st).filter(Boolean).filter(s => s.state === "playing" && canGroup(s.entity_id))
-      .sort((a, b) => ((b.attributes.group_members || []).length - (a.attributes.group_members || []).length))[0];
-    if (!lead) return;   // nothing playing: the selection just waits for Play
-    const members = lead.attributes.group_members || [lead.entity_id];
+    const leadMa = ma.filter(playing).sort((a, b) => (((st(sonosOf(b)) || {}).attributes || {}).group_members || []).length - (((st(sonosOf(a)) || {}).attributes || {}).group_members || []).length)[0];
+    if (!leadMa) return;   // nothing playing: the selection just waits for Play
+    const lead = sonosOf(leadMa), members = ((st(lead) || {}).attributes || {}).group_members || [lead];
     const add = [], drop = [];
     changed.forEach(x => {
-      const e = x.dataset.spk, on = x.getAttribute("aria-pressed") === "true";
-      if (e === lead.entity_id) return;
-      if (on && !members.includes(e)) {
-        if (canGroup(e)) add.push(e); else toast(`${nmOf(e)} can't join a group; press Play to start it there too`);
-      }
+      const e = sonosOf(x.dataset.spk), on = x.getAttribute("aria-pressed") === "true";
+      if (e === lead || !st(e)) return;
+      if (on && !members.includes(e)) add.push(e);
       if (!on && members.includes(e)) drop.push(e);
     });
-    const real = drop;
-    if (add.length) svc("media_player", "join", { group_members: [...new Set(add)] }, { entity_id: lead.entity_id })
+    if (add.length) svc("media_player", "join", { group_members: [...new Set(add)] }, { entity_id: lead })
       .then(() => toast(add.length === 1 ? `${nmOf(add[0])} joined the music` : `${add.length} speakers joined the music`)).catch(() => null);
-    if (real.length) svc("media_player", "unjoin", {}, { entity_id: real }).then(() => toast(real.length === 1 ? `${nmOf(real[0])} left the music` : `${real.length} speakers left the music`)).catch(() => null);
+    if (drop.length) svc("media_player", "unjoin", {}, { entity_id: drop }).then(() => toast(drop.length === 1 ? `${nmOf(drop[0])} left the music` : `${drop.length} speakers left the music`)).catch(() => null);
   }
-  const nmOf = e => e === "media_player.tv_room" ? "Living room" : (st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
+  const nmOf = e => /^media_player\.tv_room(_tv_room)?$/.test(e) ? "Living room" : (st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
     const t = ev.target;
