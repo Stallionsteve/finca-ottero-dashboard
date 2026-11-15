@@ -1428,6 +1428,41 @@
       store.ents[e.entity_id] = r.entity_entry || { ...e, disabled_by: null }; n++; } catch { /* skip */ } }
     toast(n ? `Switched on ${n} readings. They appear within a minute.` : "Couldn't switch them on"); lastHtml = ""; render(false);
   }
+  // Automatic recovery (15 Nov): every Home Assistant app set to start on boot and to restart itself if it crashes.
+  const APPS = [["core_mosquitto", "MQTT broker (Ring)"], ["03cabcc9_ring_mqtt", "Ring"], ["d5369777_music_assistant", "Music Assistant"],
+    ["81bc2df9_ewelink_smart_home_for_homeassistant_slug", "eWeLink"], ["core_duckdns", "DuckDNS (home link)"], ["core_nginx_proxy", "NGINX (padlock link)"]];
+  const rec = { at: 0, info: null, busy: false };
+  async function loadRecovery(force) {
+    if (store.mode === "demo" || rec.busy || (!force && Date.now() - rec.at < 120000)) return;
+    rec.busy = true;
+    try {
+      const out = {};
+      for (const [slug] of APPS) {
+        try { const r = await store.conn.sendMessagePromise({ type: "supervisor/api", endpoint: `/addons/${slug}/info`, method: "get" }); out[slug] = r; } catch { out[slug] = null; }
+      }
+      rec.info = out; rec.at = Date.now(); lastHtml = ""; render(false);
+    } finally { rec.busy = false; }
+  }
+  async function fixRecovery() {
+    let n = 0;
+    for (const [slug] of APPS) {
+      try { await store.conn.sendMessagePromise({ type: "supervisor/api", endpoint: `/addons/${slug}/options`, method: "post", data: { boot: "auto", watchdog: true } }); n++; } catch { /* not installed or not allowed */ }
+    }
+    toast(n ? `Auto-start and self-restart switched on for ${n} apps` : "Couldn't change the app settings");
+    loadRecovery(true);
+  }
+  function recoveryCard() {
+    loadRecovery();
+    if (!rec.info) return "";
+    const rows = APPS.filter(([slug]) => rec.info[slug]).map(([slug, name]) => { const i = rec.info[slug]; const good = i.boot === "auto" && i.watchdog === true;
+      return `<div class="row"><div class="row-body"><div class="row-title">${esc(name)}</div><div class="row-sub">${i.state === "started" ? "Running" : "Stopped"} · ${i.boot === "auto" ? "starts by itself" : "manual start"} · ${i.watchdog ? "restarts if it crashes" : "no self-restart"}</div></div><span class="pill ${good && i.state === "started" ? "ok" : "warn"}">${good ? "Auto" : "Check"}</span></div>`; });
+    const allGood = APPS.every(([slug]) => !rec.info[slug] || (rec.info[slug].boot === "auto" && rec.info[slug].watchdog));
+    return `<article class="card"><div class="card-head"><span class="ico">${icon("power")}</span><div class="grow"><h3>Automatic recovery</h3><div class="row-sub">After a power cut or a crash, these start again by themselves</div></div></div>
+      ${rows.join("")}
+      ${allGood ? "" : `<div class="acts" style="grid-template-columns:1fr;margin-top:10px"><button class="btn btn-primary" data-action="fix-recovery">Make all of them start and restart by themselves</button></div>`}
+      <p class="note" style="margin-top:10px">${icon("info")}<span>A watchdog also checks music, speakers, lights, Ring, eWeLink, solar readings and Alexa every few minutes and restarts what has stopped; you only get a message if that doesn't work.</span></p>
+    </article>`;
+  }
   function viewHealth() {
     const h = healthData();
     const row = (title, sub, pill, warn) => `<div class="row"><div class="row-body"><div class="row-title">${esc(title)}</div><div class="row-sub">${sub}</div></div><span class="pill ${warn ? "warn" : "ok"}">${pill}</span></div>`;
@@ -1440,6 +1475,7 @@
           ${h.offline.length ? h.offline.map(o => row(o.name, `${esc(o.area || "")}${o.area ? " · " : ""}since ${ago(o.since)}`, "Offline", true)).join("") : '<p class="note">Everything is online.</p>'}</article>
       </div>
       ${sysHealthCard()}
+      ${recoveryCard()}
       ${(() => { const ctl = Object.values(store.ents).filter(e => e.platform === "victron_gx" && /^(switch|number|select|button)\./.test(e.entity_id));
         if (!ctl.length) return "";
         const locked = mem.get("victron.locked", false);
@@ -1727,6 +1763,7 @@
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
     else if (a === "share-app") { ev.preventDefault(); shareApp(); }
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
+    else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
     else if (a === "close-nav") closeLayer();
     else if (a === "close") { if (ev.target === t || t.tagName === "BUTTON") { closeLayer(); if (location.hash === "#jarvis") history.replaceState(null, "", "#home"); renderNav(current()); } }
   });
