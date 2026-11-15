@@ -1643,6 +1643,7 @@
       try { const pl = jarvisPipeline(); svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }).catch(() => {}); } catch { /* toast shown */ }
     }
     if (reply === "device" && ttsUrl && J.audio) {
+      toSpeaker();
       J.audio.src = /^https?:/.test(ttsUrl) ? ttsUrl : store.hassUrl + ttsUrl;
       if (hud.on) { J.audio.onended = () => (asks ? hud.followUp() : hud.close(700)); J.audio.onerror = () => hud.close(2500); }
       J.audio.play().catch(() => { if (hud.on) hud.close(3500); });
@@ -1719,6 +1720,15 @@
     const jarvis = (store.pipelines || []).find(p => /jarvis/i.test(p.name));
     try { ext.fireMessage({ type: "assist/show", payload: { pipeline_id: (jarvis && jarvis.id) || store.preferredPipeline || undefined, start_listening: true } }); return true; } catch { return false; }
   }
+  // iPhone/iPad: while the microphone is open, iOS plays sound quietly through the earpiece. Before Jarvis speaks, switch the
+  // audio session to playback (Safari 16.4+), or if that isn't available, close the microphone so the loudspeaker is used.
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function toSpeaker() {
+    if (!isIOS) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch { /* older iOS */ }
+    if (J.mic) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; clearTimeout(J.micRelease); }
+  }
+  function toMic() { if (isIOS) { try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch { /* older iOS */ } } }
   const jReply = () => ($("#jreply") ? $("#jreply").value : mem.get("jarvis.reply", "device"));
   // ---------- Voice HUD (15 Nov): tap the Jarvis button → listens straight away in a holographic overlay, answers aloud,
   // then folds back into the button. Press and hold the button (or More → Jarvis) for the typing window + "Reply through".
@@ -1801,7 +1811,7 @@
       if ($("#jtext")) $("#jtext").focus(); return;
     }
     // Keep the microphone for 2 minutes after each use, so iPhone/iPad ask permission once per session, not every tap.
-    clearTimeout(J.micRelease);
+    clearTimeout(J.micRelease); toMic();
     let stream = J.mic && J.mic.getTracks().some(t => t.readyState === "live") ? J.mic : null;
     if (!stream) {
       try { stream = J.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
