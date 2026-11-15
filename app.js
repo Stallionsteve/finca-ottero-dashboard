@@ -2046,6 +2046,14 @@
     </svg>`;
     document.body.prepend(el);
   })();
+  // Wall tablet: a tap anywhere tells Home Assistant someone is using it, so the screen stays bright (max once per 20 s).
+  const isWallTablet = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent);
+  let lastTouchPing = 0;
+  if (isWallTablet) document.addEventListener("pointerdown", () => {
+    if (Date.now() - lastTouchPing < 20000 || !store.conn || store.mode === "demo") return;
+    lastTouchPing = Date.now();
+    store.conn.sendMessagePromise({ type: "fire_event", event_type: "finca_tablet_touch", event_data: {} }).catch(() => {});
+  }, { capture: true, passive: true });
   function tick() { const d = new Date(); $("#clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
   const np = { drag: false };
   document.addEventListener("pointerdown", ev => { if (ev.target.id === "np-seek") np.drag = true; });
