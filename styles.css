@@ -870,3 +870,14 @@ svg[aria-hidden="true"] { overflow: visible; }
   border: 1.5px dashed color-mix(in srgb, var(--turq) 55%, transparent); animation: hudspin 12s linear infinite; pointer-events: none; }
 @media (min-width: 900px) { .nav a[aria-current="page"]::before { top: 6px; } }
 @media (prefers-reduced-motion: reduce) { .nav a[aria-current="page"]::before { animation: none; } }
+/* Mode in progress (15 Nov): spinner until the mode has fully started or stopped */
+.mode-busy { position: relative; pointer-events: none; }
+.btn.mode-busy, .qbtn.mode-busy { padding-right: 44px; animation: modepulse 1.4s ease-in-out infinite; }
+.btn.mode-busy::after, .qbtn.mode-busy::after, .switch.mode-busy::after {
+  content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+  border: 2.5px solid var(--turq); border-right-color: transparent; animation: hudspin .8s linear infinite; }
+.btn.mode-busy::after, .qbtn.mode-busy::after { right: 14px; top: calc(50% - 9px); }
+.switch.mode-busy::after { left: calc(50% - 9px); top: calc(50% - 9px); }
+.switch.mode-busy { opacity: .85; }
+.tile.mode-busy-tile .ico::before { animation-duration: 1.2s !important; border-color: var(--turq); }
+@keyframes modepulse { 50% { box-shadow: 0 0 18px -4px var(--turq); } }

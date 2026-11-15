@@ -1224,7 +1224,41 @@
     });
     afterRender(scroll);
   }
+  // Modes "in progress" (15 Nov): after tapping party / romantic / movie / party lights / holiday, every button and switch
+  // for it spins until the mode has really finished starting (its script or automation has stopped running).
+  const MODE_WATCH = {
+    "switch.finca_party_mode": { name: "Party mode", run: ["script.finca_party_start", "script.finca_party_stop"] },
+    "switch.finca_romantic_mode": { name: "Romantic mode", run: ["script.finca_romantic_start", "script.finca_romantic_stop", "automation.finca_romance_switch_and_voice"] },
+    "switch.finca_movie_mode": { name: "Movie mode", run: ["automation.finca_movie_mode"] },
+    "switch.finca_party_lights": { name: "Party lights", run: ["automation.finca_party_lights_switch_and_voice"] },
+    "switch.finca_holiday_mode": { name: "Holiday mode", run: ["automation.finca_holiday_mode"] }
+  };
+  const modeBusy = {};
+  function modeIsBusy(eid) {
+    const b = modeBusy[eid]; if (!b) return false;
+    const age = Date.now() - b.at;
+    if (age < 1500) return true;
+    if (age > 60000) { delete modeBusy[eid]; return false; }
+    const s = st(eid); if (!s || s.state !== b.to) return true;
+    const running = MODE_WATCH[eid].run.some(w => { const x = st(w); if (!x) return false;
+      return w.startsWith("script.") ? x.state === "on" : (x.attributes.current || 0) > 0; });
+    if (running) return true;
+    delete modeBusy[eid];
+    toast(`${MODE_WATCH[eid].name} ${b.to === "on" ? "is on" : "is off"}`);
+    return false;
+  }
+  function markModes() {
+    Object.keys(MODE_WATCH).forEach(eid => {
+      const busy = !!modeBusy[eid] && modeIsBusy(eid);
+      document.querySelectorAll(`[data-toggle="${eid}"]`).forEach(el => {
+        el.classList.toggle("mode-busy", busy); if (busy) el.setAttribute("aria-busy", "true"); else el.removeAttribute("aria-busy");
+        const t = el.closest(".tile"); if (t) t.classList.toggle("mode-busy-tile", busy);
+      });
+    });
+  }
+  setInterval(() => { if (Object.keys(modeBusy).length) markModes(); }, 700);
   function afterRender(scroll) {
+    markModes();
     updateBubble();
     $("#conn").textContent = (store.mode === "demo" ? "Demo data" : store.online ? "Live" : "Reconnecting…") + (window.FINCA_VERSION ? ` · ${window.FINCA_VERSION.split(" ")[0]}` : "");
     $("#conn").title = window.FINCA_VERSION ? `App version ${window.FINCA_VERSION}` : "";
@@ -1627,6 +1661,11 @@
     if (d.toggle) {
       ev.preventDefault();
       const s = st(d.toggle); if (!s || s.state === "unavailable") return;  // "unknown" (never used yet) counts as off
+      if (MODE_WATCH[d.toggle]) {
+        if (modeIsBusy(d.toggle)) return;   // already on its way: ignore extra taps
+        const to = s.state === "on" ? "off" : "on"; modeBusy[d.toggle] = { to, at: Date.now() }; markModes();
+        toast(`${MODE_WATCH[d.toggle].name} ${to === "on" ? "starting" : "ending"}…`);
+      }
       svc(domainOf(d.toggle), s.state === "on" || (domainOf(d.toggle) === "climate" && s.state !== "off") ? "turn_off" : "turn_on", {}, { entity_id: d.toggle });
       return;
     }
