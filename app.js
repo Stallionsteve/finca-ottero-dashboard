@@ -1779,7 +1779,7 @@
       };
       tick();
     },
-    state(s) { if (!hud.el) return; hud.el.dataset.state = s; hud.el.querySelector(".jhud-state").textContent = { listening: "Listening…", followup: "Go ahead…", thinking: "Thinking…", speaking: "" }[s] || ""; },
+    state(s) { if (!hud.el) return; hud.el.dataset.state = s; hud.el.querySelector(".jhud-state").textContent = { ready: "Tap to talk", listening: "Listening…", followup: "Go ahead…", thinking: "Thinking…", speaking: "" }[s] || ""; },
     heard(t) { if (hud.el) hud.el.querySelector(".jhud-heard").textContent = t ? `“${t}”` : ""; },
     say(t) { if (!hud.el) return; hud.state("speaking"); hud.el.querySelector(".jhud-say").textContent = t || ""; },
     close(after = 0) {
@@ -1793,6 +1793,16 @@
     followUp() { if (!hud.on) return; hud.heard(""); listen(true); },
     cancel() { if (J.listening) J.listening.stop(); if (J.audio) { try { J.audio.pause(); } catch { /* fine */ } } hud.close(0); }
   };
+  // Action button / shortcut (15 Nov): …/index.html#talk opens the voice display ready to go. iPhones only allow sound and the
+  // microphone after a tap, so it shows "Tap to talk"; one tap anywhere starts listening.
+  function talkFromShortcut() {
+    history.replaceState(null, "", location.pathname + location.search + "#home");
+    if (hud.on) return;
+    hud.open(); hud.state("ready");
+    const el = hud.el, go = ev => { if (ev.target.closest(".jhud-x")) return; ev.stopPropagation(); el.removeEventListener("click", go, true); primeAudio(); listen(); };
+    el.addEventListener("click", go, true);
+    hud.closeT = setTimeout(() => { if (hud.el === el && el.dataset.state === "ready") hud.close(0); }, 30000);
+  }
   function voiceTap() {
     primeAudio();
     if (nativeAssist()) return;                      // inside the Home Assistant app: its own Assist listens
@@ -2067,6 +2077,7 @@
   document.addEventListener("keydown", ev => { if (ev.key === "Escape") closeLayer(); });
   window.addEventListener("hashchange", () => {
     if (location.hash === "#jarvis") { renderNav("jarvis"); openJarvis(); return; }
+    if (location.hash === "#talk") { talkFromShortcut(); return; }
     if (location.hash === "#more") return;
     closeLayer(); render(true);
   });
@@ -2141,7 +2152,7 @@
     ents.forEach(e => { store.ents[e.entity_id] = e; });
     try { const p = await conn.sendMessagePromise({ type: "assist_pipeline/pipeline/list" }); store.pipelines = p.pipelines; store.preferredPipeline = p.preferred_pipeline; } catch { /* Assist not set up */ }
     let booted = false;
-    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; setTimeout(jarvisBoot, 400); } });
+    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }
 
   // "System at work" background layer (15 Nov): drawn once, animated by CSS only (cheap for the phone).
@@ -2196,13 +2207,13 @@
 
   const hassUrl = C.hassUrl || (location.pathname.includes("/local/") ? location.origin : "");
   if (hassUrl && window.HAWS) {
-    connectLive(hassUrl).then(() => { render(true); if (location.hash === "#jarvis") openJarvis(); })
+    connectLive(hassUrl).then(() => { render(true); if (location.hash === "#jarvis") openJarvis(); if (location.hash === "#talk") talkFromShortcut(); })
       .catch(e => { $("#main").innerHTML = `<p class="empty">Can't reach Home Assistant at ${esc(hassUrl)} (${esc(e.message || e)}). Check you're on the finca Wi-Fi.</p>`; });
   } else {
     Demo.load(store, scheduleRender);
     store.online = true;
     render(true);
-    setTimeout(jarvisBoot, 400);
+    if (location.hash === "#talk") setTimeout(talkFromShortcut, 300); else setTimeout(jarvisBoot, 400);
     if (location.hash === "#jarvis") openJarvis();
   }
 

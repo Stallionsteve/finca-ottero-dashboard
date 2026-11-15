@@ -954,3 +954,4 @@ svg[aria-hidden="true"] { overflow: visible; }
 .st-ico svg { width: 16px; height: 16px; }
 .st-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
 .st-pick > summary { justify-content: flex-start; } .st-count { margin-left: auto; }
+.jhud[data-state="ready"] .jhud-state { animation: hudblink 1.4s ease-in-out infinite; font-size: 15px; }
