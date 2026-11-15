@@ -1216,7 +1216,7 @@
           <div class="row-body"><div class="row-title">${esc(o.name)}</div>
             <div class="row-sub">${o.home ? "At home" : `Away · ${o.km === null ? "" : o.km < 1 ? `${Math.round(o.km * 1000)} m` : `${o.km.toFixed(1)} km`} from home`} · since ${ago(o.since)}${o.bat !== null ? ` · phone ${o.bat}%` : ""}</div></div>
           <button class="btn btn-sm" data-otter="${o.id}">Show</button></div></article>`).join("") || '<p class="empty">Once each phone has the Home Assistant app with location on, it appears here.</p>'}</div>
-      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each phone (Steve's iPhone: Location “Always”; Hollie's Android: location “Allow all the time” and battery optimisation off for the app). Private to this house; no subscription. Map © OpenStreetMap, © CARTO.</span></p>
+      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each phone (Steve's iPhone: Location “Always”; Hollie's Android: location “Allow all the time” and battery optimisation off for the app). Private to this house; no subscription. Map © OpenStreetMap contributors.</span></p>
     </section>`;
   }
   function drawOtterMap() {
@@ -1226,7 +1226,8 @@
       if (!fm.map || fm.map.getContainer() !== el2) {
         if (fm.map) fm.map.remove();
         fm.map = L.map(el2, { zoomControl: false, attributionControl: true });
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: "© OpenStreetMap © CARTO" }).addTo(fm.map);
+        // OpenStreetMap's own tiles (free, no key), tinted dark in CSS to match the app (CARTO started asking for a key, 15 Nov)
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, className: "osm-dark", attribution: "© OpenStreetMap contributors" }).addTo(fm.map);
         fm.layer = L.layerGroup().addTo(fm.map);
       }
       fm.layer.clearLayers();
