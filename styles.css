@@ -858,3 +858,15 @@ body { background: transparent; }
 .wx-rain, .wx-snow { color: #2ee6d6; } .wx-storm { color: #ff9a3c; }
 .wx-emoji { display: inline-flex; font-size: 26px; }
 .wx-i { font-size: 30px; display: grid; place-items: center; }
+
+/* Iron Man icon pass (15 Nov): every line icon gets a soft HUD glow; buttons and chips show turquoise icons;
+   the active bottom-bar item gets a small arc ring. Locked palette unchanged. */
+svg[aria-hidden="true"] { overflow: visible; }
+.btn svg, .seg-btn svg, .chip svg, .row > .ico svg, .round-btn svg, .note svg, .more-grid svg, .suggest svg { filter: drop-shadow(0 0 3px color-mix(in srgb, currentColor 70%, transparent)); }
+.btn:not(.btn-primary) svg, .seg-btn svg { color: var(--turq); }
+.nav a svg { filter: drop-shadow(0 0 2px color-mix(in srgb, currentColor 50%, transparent)); }
+.nav a { position: relative; }
+.nav a[aria-current="page"]::before { content: ""; position: absolute; top: 4px; left: 50%; width: 42px; height: 42px; margin-left: -21px; border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--turq) 55%, transparent); animation: hudspin 12s linear infinite; pointer-events: none; }
+@media (min-width: 900px) { .nav a[aria-current="page"]::before { top: 6px; } }
+@media (prefers-reduced-motion: reduce) { .nav a[aria-current="page"]::before { animation: none; } }
