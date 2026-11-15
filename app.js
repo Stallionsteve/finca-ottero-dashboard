@@ -939,7 +939,7 @@
     "media_player.bedroom_sonos_connect_media_renderer": "media_player.bedroom_bedroom", "media_player.bedroom_2_sonos_play_5_media_renderer": "media_player.bedroom_2_bedroom_2" };
   function sonosFavs() {
     const src = (st("media_player.bar_bar") || st("media_player.tv_room_tv_room") || { attributes: {} }).attributes.source_list || [];
-    return src.filter(x => !/^(line-in|tv|audio component)/i.test(x));
+    return [...new Set(src.filter(x => !/^(line-in|tv|audio component)/i.test(x)))];   // a favourite saved twice shows once
   }
   // Search results (14 Nov): one search per Enter/Search tap (not per letter: keeps Spotify's rate limit happy),
   // a compact list with covers; tap one to select it, then Play.
