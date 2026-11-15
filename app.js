@@ -1356,6 +1356,7 @@
     if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
     if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
     if (a.nodeType !== 1) return;
+    if (a.id === "otter-map" && b.id === "otter-map") return;   // the map draws itself: never touch its inside
     const cam = a.tagName === "IMG" && a.hasAttribute("data-cam");
     if (cam && a.getAttribute("data-cam") !== b.getAttribute("data-cam")) { a.replaceWith(b); return; }
     for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
