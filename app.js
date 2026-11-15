@@ -148,7 +148,19 @@
   };
 
   const st = id => (id && store.states[id]) || null;
-  const nm = s => (s && s.attributes && s.attributes.friendly_name) || (s ? s.entity_id : "");
+  const nmRaw = s => (s && s.attributes && s.attributes.friendly_name) || (s ? s.entity_id : "");
+  // Tidy names (15 Nov): "Ganes Room2" → "Games Room 2", "Room2" → "Room 2", doubled spaces.
+  const nm = s => nmRaw(s).replace(/\bganes\b/i, "Games").replace(/([a-z])(\d+)$/i, "$1 $2").replace(/\s{2,}/g, " ").trim();
+  const natCmp = (a, b) => String(a).localeCompare(String(b), "en", { numeric: true, sensitivity: "base" });
+  // House order (15 Nov, owner): rooms listed as you move through the finca; anything new goes after, A–Z.
+  const ROOM_ORDER = ["living room", "kitchen", "downstairs lounge", "hallway", "front door", "bar", "terrace", "pool", "pool house",
+    "master bedroom", "bedroom", "bedroom 2", "games room", "games room 2", "downstairs loo", "outside", "other lights"];
+  const roomCmp = (a, b) => { const ia = ROOM_ORDER.indexOf(String(a).toLowerCase()), ib = ROOM_ORDER.indexOf(String(b).toLowerCase());
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || natCmp(a, b); };
+  // Speakers in house order: Living room, Bar, Bar 2, Games Room, Games Room 2, Move, Bedroom, Bedroom 2, then TV.
+  const SPK_ORDER = ["tv_room", "bar", "bar_2", "games_room", "ganes_room2", "move", "bedroom", "bedroom_2"];
+  const spkRank = e => { const k = String(e).replace(/^media_player\./, "").replace(/_(tv_room|bar|bar_2|games_room|ganes_room2|bedroom|bedroom_2)$/, "")
+      .replace(/_sonos_.*$/, "").replace(/^move_2$/, "move"); const i = SPK_ORDER.indexOf(k); return i < 0 ? 50 : i; };
   const ok = s => !!s && s.state !== "unavailable" && s.state !== "unknown";
   const num = id => { const s = st(id); if (!ok(s)) return null; const v = parseFloat(s.state); return Number.isFinite(v) ? v : null; };
   const isHidden = s => C.hide.some(r => r.test(s.entity_id) || r.test(nm(s)));
@@ -519,7 +531,9 @@
       const b = add(area, s);
       if (isGroup(s) && !b.group) b.group = s; else if (!isGroup(s)) b.lights.push(s);
     });
-    return [...buckets.values()].filter(b => b.lights.length || b.group).sort((a, b) => a.name.localeCompare(b.name));
+    const out = [...buckets.values()].filter(b => b.lights.length || b.group).sort((a, b) => roomCmp(a.name, b.name));
+    out.forEach(b => b.lights.sort((x, y) => natCmp(nm(x), nm(y))));   // Bar 1, Bar 2 … Bar 5, then Side 1, Side 2
+    return out;
   }
   function areaCard(b) {
     const members = b.lights.length ? b.lights : (b.group ? [b.group] : []);
@@ -1000,7 +1014,8 @@
     // The Arc carries the whole TV surround (2 Era 300 + Sub are bonded to it), so it leads the list as "Living room".
     ma.sort((a, b) => (b.entity_id === "media_player.tv_room") - (a.entity_id === "media_player.tv_room"));
     { const seen = new Set(), label = s => s.entity_id === "media_player.tv_room" ? "Living room" : nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV");
-      const keep = []; ma.forEach(s => { const k = label(s).toLowerCase(); if (!seen.has(k)) { seen.add(k); keep.push(s); } }); ma.splice(0, ma.length, ...keep); }
+      const keep = []; ma.forEach(s => { const k = label(s).toLowerCase(); if (!seen.has(k)) { seen.add(k); keep.push(s); } }); ma.splice(0, ma.length, ...keep);
+      ma.sort((a, b) => spkRank(a.entity_id) - spkRank(b.entity_id) || natCmp(nm(a), nm(b))); }
     return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
       <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
         <div class="ms-bar"><input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Search Spotify" autocomplete="off" enterkeyhint="search" value="${esc(ms.q)}">
@@ -1078,7 +1093,7 @@
     const speakers_ = all_mp.filter(s => platformOf(s.entity_id) === "sonos");
     const tvs = all_mp.filter(s => /65pus|philips|tv$/i.test(nm(s)) && platformOf(s.entity_id) !== "sonos" && platformOf(s.entity_id) !== "music_assistant");
     const tv = tvs.find(ok) || tvs[0];
-    const players = [...speakers_.sort((a, b) => (b.entity_id === "media_player.tv_room_tv_room") - (a.entity_id === "media_player.tv_room_tv_room") || nm(a).localeCompare(nm(b))), ...(tv ? [tv] : [])];
+    const players = [...speakers_.sort((a, b) => spkRank(a.entity_id) - spkRank(b.entity_id) || natCmp(nm(a), nm(b))), ...(tv ? [tv] : [])];
     const prettyName = s => s === tv ? "TV" : isLR(s) ? "Living room" : nm(s);
     const isLR = s => s.entity_id === "media_player.tv_room_tv_room";
     const card = s => {
@@ -1135,7 +1150,7 @@
     const cutoff = Date.now() / 1000 - 14 * 86400;
     const recent = Object.values(store.devices).filter(d => (d.created_at || 0) > cutoff && !d.disabled_by && d.entry_type !== "service")
       .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 30);
-    const areas = Object.values(store.areas).sort((a, b) => a.name.localeCompare(b.name));
+    const areas = Object.values(store.areas).sort((a, b) => roomCmp(a.name, b.name));
     const flows = dev.flows || [];
     const addUrl = (store.hassUrl || "") + "/config/integrations/dashboard";
     return `<section class="view">
