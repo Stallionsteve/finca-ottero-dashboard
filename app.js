@@ -1617,6 +1617,7 @@
       <div class="suggest">${C.jarvis.suggestions.map(q => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>
       <form class="jarvis-input" id="jform"><input id="jtext" type="text" autocomplete="off" placeholder="Ask Jarvis…" aria-label="Message for Jarvis" enterkeyhint="send">
         <button type="button" class="mic" id="jmic" aria-label="Speak to Jarvis">${icon("mic")}</button></form>
+      <p class="row-sub" style="margin:0">Tip: tap the Jarvis button to just talk; press and hold it for this window.</p>
       <div class="jarvis-opts"><label for="jreply">Reply through</label><select class="sel" id="jreply">
         <option value="device">This device</option>${speakers().map(s => `<option value="${s.entity_id}" ${reply === s.entity_id ? "selected" : ""}>${esc(nm(s))}</option>`).join("")}
         <option value="none" ${reply === "none" ? "selected" : ""}>Text only</option></select></div>
@@ -1634,8 +1635,13 @@
   function primeAudio() { if (!J.audio) { J.audio = new Audio(); } J.audio.src = silentWav; J.audio.play().catch(() => {}); }
   async function deliver(speech, ttsUrl) {
     addMsg("j", speech || "I'm afraid I have no answer for that.");
-    const reply = $("#jreply") ? $("#jreply").value : "device";
-    if (reply === "device" && ttsUrl && J.audio) { J.audio.src = /^https?:/.test(ttsUrl) ? ttsUrl : store.hassUrl + ttsUrl; J.audio.play().catch(() => {}); }
+    const reply = jReply();
+    if (hud.on) hud.say(speech || "I'm afraid I have no answer for that.");
+    if (reply === "device" && ttsUrl && J.audio) {
+      J.audio.src = /^https?:/.test(ttsUrl) ? ttsUrl : store.hassUrl + ttsUrl;
+      if (hud.on) { J.audio.onended = () => hud.close(700); J.audio.onerror = () => hud.close(2500); }
+      J.audio.play().catch(() => { if (hud.on) hud.close(3500); });
+    } else if (hud.on) hud.close(reply === "none" ? 5000 : 3500);
     else if (reply !== "device" && reply !== "none" && speech && store.mode === "live") {
       try { const pl = jarvisPipeline(); await svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }); } catch { /* toast shown */ }
     }
@@ -1655,7 +1661,7 @@
     primeAudio();
     addMsg("me", text);
     if (store.mode === "demo") { await deliver(Demo.jarvis(text)); return; }
-    const reply = $("#jreply").value;
+    const reply = jReply();
     let speech = "", url = "";
     await runPipeline(pipelineMsg("intent", reply, { text }), ev => {
       if (ev.type === "intent-end") { const o = ev.data.intent_output; speech = o.response.speech.plain.speech; J.convId = o.conversation_id; }
@@ -1707,37 +1713,109 @@
     const jarvis = (store.pipelines || []).find(p => /jarvis/i.test(p.name));
     try { ext.fireMessage({ type: "assist/show", payload: { pipeline_id: (jarvis && jarvis.id) || store.preferredPipeline || undefined, start_listening: true } }); return true; } catch { return false; }
   }
+  const jReply = () => ($("#jreply") ? $("#jreply").value : mem.get("jarvis.reply", "device"));
+  // ---------- Voice HUD (15 Nov): tap the Jarvis button → listens straight away in a holographic overlay, answers aloud,
+  // then folds back into the button. Press and hold the button (or More → Jarvis) for the typing window + "Reply through".
+  const hud = {
+    on: false, el: null, raf: 0, closeT: 0,
+    open() {
+      clearTimeout(hud.closeT); if (hud.el) hud.el.remove();
+      const fab = $("#jarvis-fab"), r = fab ? fab.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight - 80, width: 0, height: 0 };
+      const el = document.createElement("div"); el.className = "jhud"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Jarvis is listening");
+      el.style.setProperty("--fx", (r.left + r.width / 2) + "px"); el.style.setProperty("--fy", (r.top + r.height / 2) + "px");
+      el.innerHTML = `<div class="jhud-core">
+          <svg viewBox="0 0 300 300" aria-hidden="true">
+            <defs><radialGradient id="jhg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#bff9ff" stop-opacity=".95"/><stop offset=".35" stop-color="#2ee6d6" stop-opacity=".55"/><stop offset="1" stop-color="#2ee6d6" stop-opacity="0"/></radialGradient></defs>
+            <circle class="h-glow" cx="150" cy="150" r="70" fill="url(#jhg)"/>
+            <g class="h-r1"><circle cx="150" cy="150" r="138" /></g>
+            <g class="h-r2"><circle cx="150" cy="150" r="118" /></g>
+            <g class="h-r3"><circle cx="150" cy="150" r="98" /></g>
+            <g class="h-ticks">${Array.from({ length: 60 }, (_, i) => `<line x1="150" y1="6" x2="150" y2="${i % 5 ? 13 : 20}" transform="rotate(${i * 6} 150 150)"/>`).join("")}</g>
+            <g class="h-bars">${Array.from({ length: 48 }, (_, i) => `<rect x="148.5" y="44" width="3" height="10" rx="1.5" transform="rotate(${i * 7.5} 150 150)"/>`).join("")}</g>
+            <circle class="h-core" cx="150" cy="150" r="36"/>
+            <text x="150" y="155" text-anchor="middle" class="h-name">JARVIS</text>
+          </svg></div>
+        <div class="jhud-state">Listening…</div>
+        <div class="jhud-heard"></div>
+        <div class="jhud-say"></div>
+        <button class="jhud-x" aria-label="Close Jarvis">×</button>`;
+      document.body.appendChild(el); hud.el = el; hud.on = true;
+      requestAnimationFrame(() => el.classList.add("open"));
+      el.addEventListener("click", ev => {
+        if (ev.target.closest(".jhud-x")) { hud.cancel(); return; }
+        if (J.listening) J.listening.stop();          // tap while listening = "I've finished"
+        else if (el.dataset.state === "speaking") hud.cancel();
+      });
+      hud.loop();
+    },
+    loop() {
+      cancelAnimationFrame(hud.raf);
+      const bars = hud.el ? hud.el.querySelectorAll(".h-bars rect") : [];
+      const buf = new Uint8Array(128);
+      const tick = () => {
+        if (!hud.on || !hud.el) return;
+        let lv = [];
+        if (J.analyser) { J.analyser.getByteFrequencyData(buf); for (let i = 0; i < bars.length; i++) lv.push(buf[2 + Math.floor(i * 1.2) % 90] / 255); }
+        else { const t = Date.now() / 260, sp = hud.el.dataset.state === "speaking"; for (let i = 0; i < bars.length; i++) lv.push(sp ? (0.25 + 0.35 * Math.abs(Math.sin(t + i * 0.55)) * Math.abs(Math.sin(t * 0.7 + i))) : 0.08 + 0.06 * Math.sin(t + i / 3)); }
+        bars.forEach((b, i) => b.setAttribute("height", (6 + lv[i] * 46).toFixed(1)));
+        hud.raf = requestAnimationFrame(tick);
+      };
+      tick();
+    },
+    state(s) { if (!hud.el) return; hud.el.dataset.state = s; hud.el.querySelector(".jhud-state").textContent = { listening: "Listening…", thinking: "Thinking…", speaking: "" }[s] || ""; },
+    heard(t) { if (hud.el) hud.el.querySelector(".jhud-heard").textContent = t ? `“${t}”` : ""; },
+    say(t) { if (!hud.el) return; hud.state("speaking"); hud.el.querySelector(".jhud-say").textContent = t || ""; },
+    close(after = 0) {
+      clearTimeout(hud.closeT);
+      hud.closeT = setTimeout(() => {
+        if (!hud.el) return; const el = hud.el; el.classList.remove("open"); el.classList.add("zip");
+        const fab = $("#jarvis-fab"); if (fab) { fab.classList.remove("zip-in"); void fab.offsetWidth; fab.classList.add("zip-in"); }
+        hud.on = false; hud.el = null; cancelAnimationFrame(hud.raf); setTimeout(() => el.remove(), 650);
+      }, after);
+    },
+    cancel() { if (J.listening) J.listening.stop(); if (J.audio) { try { J.audio.pause(); } catch { /* fine */ } } hud.close(0); }
+  };
+  function voiceTap() {
+    primeAudio();
+    if (nativeAssist()) return;                      // inside the Home Assistant app: its own Assist listens
+    const canMic = store.mode === "demo" || (window.isSecureContext && navigator.mediaDevices);
+    if (!canMic) { openJarvis(); return; }          // plain http: no microphone → typing window
+    if (hud.on) { hud.cancel(); return; }
+    hud.open(); listen();
+  }
   async function listen() {
     if (J.listening) { J.listening.stop(); return; }
     if (nativeAssist()) { closeLayer(); return; }
     primeAudio();
-    if (store.mode === "demo") { addMsg("sys", "Voice works when the app is connected to Home Assistant. Type a question to try the demo."); return; }
+    if (store.mode === "demo") { if (hud.on) { hud.state("listening"); setTimeout(() => { hud.heard("How much solar are we generating?"); hud.state("thinking"); }, 1800); setTimeout(() => deliver(Demo.jarvis("How much solar are we generating?")), 2600); return; }
+      addMsg("sys", "Voice works when the app is connected to Home Assistant. Type a question to try the demo."); return; }
     if (!window.isSecureContext || !navigator.mediaDevices) {
       addMsg("sys", "Voice isn't available on the home link (the iPhone, iPad and Android only allow the microphone on a secure link). To talk to Jarvis, open the Home Assistant app — it opens on this Finca page and its Jarvis button listens. Or type here, or use the microphone on your keyboard to dictate.");
-      $("#jtext").focus(); return;
+      if ($("#jtext")) $("#jtext").focus(); return;
     }
     // Keep the microphone for 2 minutes after each use, so iPhone/iPad ask permission once per session, not every tap.
     clearTimeout(J.micRelease);
     let stream = J.mic && J.mic.getTracks().some(t => t.readyState === "live") ? J.mic : null;
     if (!stream) {
       try { stream = J.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-      catch { addMsg("sys", "Microphone permission was declined."); return; }
+      catch { addMsg("sys", "Microphone permission was declined."); if (hud.on) { hud.say("I need the microphone for that, sir."); hud.close(2500); } return; }
     }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(stream);
     const proc = ctx.createScriptProcessor(4096, 1, 1);
+    const an = ctx.createAnalyser(); an.fftSize = 256; src.connect(an); J.analyser = an;
     let handler = null;
     const ratio = ctx.sampleRate / 16000;
     const stop = () => {
       if (!J.listening) return;
-      J.listening = null; $("#jmic") && $("#jmic").classList.remove("listening");
+      J.listening = null; $("#jmic") && $("#jmic").classList.remove("listening"); J.analyser = null; if (hud.on) hud.state("thinking");
       proc.disconnect(); src.disconnect(); ctx.close();
       J.micRelease = setTimeout(() => { if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; } }, 120000);
       if (handler !== null) store.conn.socket.send(new Uint8Array([handler]));
       handler = null;  // nothing more may be sent for this run (stray audio caused "non-existing handler" errors)
     };
     J.listening = { stop };
-    $("#jmic").classList.add("listening");
+    $("#jmic") && $("#jmic").classList.add("listening"); if (hud.on) hud.state("listening");
     proc.onaudioprocess = e => {
       if (handler === null || !J.listening) return;
       const inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio);
@@ -1747,12 +1825,12 @@
       store.conn.socket.send(out);
     };
     src.connect(proc); proc.connect(ctx.destination);
-    const reply = $("#jreply").value;
+    const reply = jReply();
     let speech = "", url = "";
     await runPipeline(pipelineMsg("stt", reply, { sample_rate: 16000 }), ev => {
       if (ev.type === "run-start") handler = ev.data.runner_data.stt_binary_handler_id;
       if (ev.type === "stt-vad-end") stop();
-      if (ev.type === "stt-end") addMsg("me", ev.data.stt_output.text);
+      if (ev.type === "stt-end") { addMsg("me", ev.data.stt_output.text); if (hud.on) hud.heard(ev.data.stt_output.text); }
       if (ev.type === "intent-end") { const o = ev.data.intent_output; speech = o.response.speech.plain.speech; J.convId = o.conversation_id; }
       if (ev.type === "tts-end") url = ev.data.tts_output.url;
       if (ev.type === "error") { stop(); if (!speech) speech = ev.data.code === "stt-no-text-recognized" ? "Sorry, I didn't catch that." : `Something went wrong: ${ev.data.message}`; }
@@ -1978,7 +2056,12 @@
   <circle class="spark" cx="40" cy="38" r="14" fill="#7fdcff" opacity=".18"/>
   <text x="50" y="54.5" text-anchor="middle" class="jlabel">JARVIS</text>
 </svg>`; }
-  $("#jarvis-fab").addEventListener("click", () => { primeAudio(); if (!nativeAssist()) openJarvis(); });
+  // Tap = voice HUD; press and hold (0.6 s) = typing window with "Reply through".
+  { const fab = $("#jarvis-fab"); let holdT = 0, held = false;
+    fab.addEventListener("pointerdown", () => { held = false; holdT = setTimeout(() => { held = true; primeAudio(); openJarvis(); }, 600); });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(t => fab.addEventListener(t, () => clearTimeout(holdT)));
+    fab.addEventListener("contextmenu", ev => ev.preventDefault());
+    fab.addEventListener("click", ev => { if (held) { ev.preventDefault(); return; } voiceTap(); }); }
 
   // ---------- connection ----------
   async function connectLive(hassUrl) {
