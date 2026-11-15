@@ -852,3 +852,9 @@ body { background: transparent; }
 .jarvis .suggest::-webkit-scrollbar { display: none; }
 .jarvis .suggest button { flex: none; white-space: nowrap; }
 .jarvis .jarvis-input, .jarvis .jarvis-opts, .jarvis .card-head { flex: none; }
+/* HUD weather icons (15 Nov) */
+.wxsvg { width: 1em; height: 1em; vertical-align: -0.15em; filter: drop-shadow(0 0 4px currentColor); }
+.wx-sun { color: #ffb347; } .wx-moon { color: #ffe9a8; } .wx-pcloud, .wx-cloud, .wx-fog, .wx-wind { color: #bfeff0; }
+.wx-rain, .wx-snow { color: #2ee6d6; } .wx-storm { color: #ff9a3c; }
+.wx-emoji { display: inline-flex; font-size: 26px; }
+.wx-i { font-size: 30px; display: grid; place-items: center; }

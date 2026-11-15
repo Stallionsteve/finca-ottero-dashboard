@@ -351,7 +351,22 @@
       const open = document.querySelector("#layer .sheet"); if (open && wx.sheet && !open.querySelector(".wx-days")) open.innerHTML = weatherCard(true);
     } catch { wx.at = Date.now() - 25 * 60000; } finally { wx.busy = false; }
   }
-  const WX_ICON = { sunny: "☀️", "clear-night": "🌙", partlycloudy: "⛅", cloudy: "☁️", rainy: "🌦️", pouring: "🌧️", "lightning-rainy": "⛈️", lightning: "🌩️", fog: "🌫️", windy: "💨", "windy-variant": "💨", snowy: "❄️", "snowy-rainy": "🌨️", hail: "🌨️" };
+  // Weather icons (15 Nov): own HUD-style line icons instead of emojis (the wall tablet showed some emojis as blank squares).
+  const WXP = {
+    sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
+    moon: '<path d="M19.5 14.5A7.5 7.5 0 1 1 9.5 4.5a6 6 0 0 0 10 10z"/><path d="M17 4.5v2M16 5.5h2"/>',
+    cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 7.4 9.2 4.7 4.7 0 0 0 7 18.5z"/>',
+    pcloud: '<circle cx="8.5" cy="8.5" r="3.2"/><path d="M8.5 2.6v1.4M2.6 8.5h1.4M4.3 4.3l1 1M12.7 4.3l-1 1"/><path d="M9 19.5h9a3.5 3.5 0 0 0 .3-7 4.8 4.8 0 0 0-9.1-1.1A4 4 0 0 0 9 19.5z"/>',
+    rain: '<path d="M7 15.5h10.5a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 7.4 6.2 4.7 4.7 0 0 0 7 15.5z"/><path d="M8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5"/>',
+    storm: '<path d="M7 14.5h10.5a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 7.4 5.2 4.7 4.7 0 0 0 7 14.5z"/><path d="M12.5 14.5l-2 3.5h3l-2 3.5"/>',
+    fog: '<path d="M7 12.5h10.5a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.5 1.2A3.6 3.6 0 0 0 7 12.5z"/><path d="M4 15.5h16M6 18.5h12M8 21.5h8"/>',
+    wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 13h15a3 3 0 1 1-3 3M3 17h7"/>',
+    snow: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/>'
+  };
+  const WX_KIND = { sunny: "sun", "clear-night": "moon", partlycloudy: "pcloud", cloudy: "cloud", rainy: "rain", pouring: "rain", "lightning-rainy": "storm",
+    lightning: "storm", fog: "fog", windy: "wind", "windy-variant": "wind", snowy: "snow", "snowy-rainy": "snow", hail: "snow", exceptional: "storm" };
+  const wxIcon = c => { const k = WX_KIND[c] || "cloud"; return `<svg class="wxsvg wx-${k}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WXP[k]}</svg>`; };
+  const WX_ICON = new Proxy({}, { get: (_, c) => wxIcon(String(c)) });
   const compass = b => b === undefined || b === null ? "" : ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(((+b % 360) + 360) % 360 / 45) % 8];
   function weatherCard(inSheet = false) {
     loadForecast();
@@ -365,8 +380,8 @@
         <div class="wx-d">${i === 0 ? "Today" : new Date(d.datetime).toLocaleDateString("en-GB", { weekday: "short" })}</div>
         <div class="wx-i" title="${esc(String(d.condition || "").replace(/-/g, " "))}">${WX_ICON[d.condition] || "·"}</div>
         <div class="wx-t"><b>${Math.round(d.temperature)}°</b>${d.templow !== undefined ? `<span>${Math.round(d.templow)}°</span>` : ""}</div>
-        <div class="wx-w">💨 ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small>${compass(d.wind_bearing) || "&nbsp;"}</small></div>
-        ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r">💧 ${Math.round(d.precipitation_probability)}%</div>` : (d.precipitation || 0) >= 0.3 ? `<div class="wx-r">💧 ${(+d.precipitation).toFixed(1)} mm</div>` : ""}
+        <div class="wx-w"><svg class="wxsvg wx-wind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h11a3 3 0 1 0-3-3M3 13h15a3 3 0 1 1-3 3M3 17h7"/></svg> ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small>${compass(d.wind_bearing) || "&nbsp;"}</small></div>
+        ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r"><svg class="wxsvg wx-rain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.6 6 10.5a6 6 0 0 1-12 0c0-3.9 6-10.5 6-10.5z"/></svg> ${Math.round(d.precipitation_probability)}%</div>` : (d.precipitation || 0) >= 0.3 ? `<div class="wx-r"><svg class="wxsvg wx-rain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.6 6 10.5a6 6 0 0 1-12 0c0-3.9 6-10.5 6-10.5z"/></svg> ${(+d.precipitation).toFixed(1)} mm</div>` : ""}
       </div>`).join("")}</div>
       ${inSheet ? '<div class="acts"><button class="btn" data-action="close">Close</button></div>' : ""}
     </article>`;
@@ -383,7 +398,7 @@
       <article class="card" style="--tint:var(--sunset)"><div class="card-head"><span class="ico">${icon("sun")}</span><div class="grow"><h3>Solar forecast</h3><div class="row-sub">What the panels could make (Forecast.Solar)</div></div></div>
         <div class="fc-row"><div><div class="row-sub">Today</div><div class="fc-n">${big(n(today), "kWh")}</div>${n(rem) !== null ? `<div class="row-sub">${Math.round(n(rem))} kWh still to come</div>` : ""}</div>
           <div><div class="row-sub">Tomorrow</div><div class="fc-n">${big(n(tom), "kWh")}</div></div></div>
-        ${best ? `<p class="row-sub" style="margin-top:10px">☀️ Best hours for the jacuzzi heater, washing machine or extra air con: <b style="color:var(--sand)">${best}</b></p>` : ""}
+        ${best ? `<p class="row-sub" style="margin-top:10px">Best hours for the jacuzzi heater, washing machine or extra air con: <b style="color:var(--sand)">${best}</b></p>` : ""}
       </article>
       <article class="card" style="--tint:var(--turq)"><div class="card-head"><span class="ico">${icon("battery")}</span><div class="grow"><h3>Solar savings</h3><div class="row-sub">This month so far</div></div></div>
         <div class="fc-row"><div><div class="row-sub">Saved</div><div class="fc-n">${n(sav) === null ? "—" : `€${Math.round(n(sav))}`}</div></div>
