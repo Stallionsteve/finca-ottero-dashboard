@@ -1803,13 +1803,20 @@
     const leadMa = ma.filter(playing).sort((a, b) => (((st(sonosOf(b)) || {}).attributes || {}).group_members || []).length - (((st(sonosOf(a)) || {}).attributes || {}).group_members || []).length)[0];
     if (!leadMa) return;   // nothing playing: the selection just waits for Play
     const lead = sonosOf(leadMa), members = ((st(lead) || {}).attributes || {}).group_members || [lead];
-    const add = [], drop = [];
+    const add = [], drop = [], s1add = [], s1drop = [];
+    const S1 = ["media_player.bedroom_bedroom", "media_player.bedroom_2_bedroom_2"];   // Sonos S1: a separate system, can't join S2 groups
     changed.forEach(x => {
       const e = sonosOf(x.dataset.spk), on = x.getAttribute("aria-pressed") === "true";
       if (e === lead || !st(e)) return;
+      if (S1.includes(e)) { (on ? s1add : s1drop).push(x.dataset.spk); return; }
       if (on && !members.includes(e)) add.push(e);
       if (!on && members.includes(e)) drop.push(e);
     });
+    // S1 bedrooms: start the same song there through Music Assistant (then similar music), roughly in time, not perfectly synced
+    const leadState = st(leadMa) || {}, now = (leadState.attributes || {}).media_content_id;
+    if (s1add.length && now) svc("music_assistant", "play_media", { media_id: now, enqueue: "replace", radio_mode: true }, { entity_id: s1add })
+      .then(() => toast(`${s1add.map(nmOf).join(" and ")} playing too (separate Sonos S1 system)`)).catch(() => null);
+    if (s1drop.length) svc("media_player", "media_pause", {}, { entity_id: s1drop }).catch(() => null);
     if (add.length) svc("media_player", "join", { group_members: [...new Set(add)] }, { entity_id: lead })
       .then(() => toast(add.length === 1 ? `${nmOf(add[0])} joined the music` : `${add.length} speakers joined the music`)).catch(() => null);
     if (drop.length) svc("media_player", "unjoin", {}, { entity_id: drop }).then(() => toast(drop.length === 1 ? `${nmOf(drop[0])} left the music` : `${drop.length} speakers left the music`)).catch(() => null);
