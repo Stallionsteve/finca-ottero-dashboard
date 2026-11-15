@@ -1840,13 +1840,17 @@
       if (ev.type === "run-start") handler = ev.data.runner_data.stt_binary_handler_id;
       if (ev.type === "stt-vad-start") { heardSomething = true; clearTimeout(quietT); }
       if (ev.type === "stt-vad-end") stop();
-      if (ev.type === "stt-end") { addMsg("me", ev.data.stt_output.text); if (hud.on) hud.heard(ev.data.stt_output.text); }
+      if (ev.type === "stt-end") { const said = ev.data.stt_output.text || ""; addMsg("me", said); if (hud.on) hud.heard(said);
+        // follow-up answered with "no / no thanks / nothing else / that's all…": fold away without another reply
+        if (followUp && /^\W*(no+|nope|nah|no thanks?( you)?|no,? (that'?s|i'?m) (all|it|fine|good)|nothing( else)?( thanks?)?|that'?s (all|it|everything|fine)|i'?m (good|fine|ok(ay)?)( thanks?)?|all good|thanks?( you)?( jarvis)?|cheers|no,? thanks?( jarvis)?)\W*$/i.test(said.trim())) J.dismissed = true; }
       if (ev.type === "intent-end") { const o = ev.data.intent_output; speech = o.response.speech.plain.speech; J.convId = o.conversation_id; }
       if (ev.type === "tts-end") url = ev.data.tts_output.url;
       if (ev.type === "error") { stop(); if (!speech) speech = ev.data.code === "stt-no-text-recognized" ? "Sorry, I didn't catch that." : `Something went wrong: ${ev.data.message}`; }
     });
     stop(); clearTimeout(quietT);
-    if (followUp && (J.followSilent || !heardSomething || /didn't catch that/i.test(speech))) { J.followSilent = false; if (hud.on) hud.close(0); return; }
+    if (followUp && (J.followSilent || J.dismissed || !heardSomething || /didn't catch that/i.test(speech))) {
+      const bye = J.dismissed; J.followSilent = false; J.dismissed = false;
+      if (hud.on) { if (bye) { hud.say("Very good, sir."); hud.close(900); } else hud.close(0); } return; }
     J.followSilent = false;
     await deliver(speech, url);
   }
