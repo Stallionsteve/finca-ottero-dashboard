@@ -269,6 +269,7 @@
     { id: "pool", label: "Pool", icon: "poollight", rail: true },
     { id: "devices", label: "Devices", icon: "plus", rail: true },
     { id: "health", label: "Checks", icon: "battery", rail: true },
+    { id: "otters", label: "Find My Otter", icon: "pin", rail: true },
     { id: "jarvis", label: "Jarvis", icon: "mic", rail: true }
   ];
   function renderNav(cur) {
@@ -1208,7 +1209,7 @@
     const list = otters(), away = list.filter(o => !o.home);
     setTimeout(drawOtterMap, 0);
     return `<section class="view">
-      <div class="page-head"><div><h1>Find My Otter</h1><p>${list.length ? (away.length === list.length ? "Both away from home" : away.length ? `${away.map(o => o.name).join(" and ")} out` : "Both at home") : "No phones sharing location yet"}</p></div><span class="pill warn">Test version</span></div>
+      <div class="page-head"><div><h1>Find My Otter</h1><p>${list.length ? (list.length < 2 ? (away.length ? `${list[0].name} is out` : `${list[0].name} is at home`) + " · Hollie's phone not added yet" : away.length === list.length ? "Both away from home" : away.length ? `${away.map(o => o.name).join(" and ")} out` : "Both at home") : "No phones sharing location yet"}</p></div></div>
       <article class="card otter-map-card"><div id="otter-map" class="otter-map" role="img" aria-label="Map showing where Steve and Hollie are"></div></article>
       <div class="grid g-2">${list.map(o => `<article class="card"><div class="row" style="padding:0">
           <span class="ico otter-dot ${o.home ? "home" : ""}">${icon(o.home ? "home" : "pin")}</span>
@@ -1565,7 +1566,6 @@
     if (!p) { p = document.createElement("div"); p.id = "more-panel"; p.className = "more-panel"; document.body.appendChild(p); }
     const cur = current();
     p.innerHTML = `<div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-more" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")}
-        <a href="#otters" data-action="close-more" class="test-tile" ${cur === "otters" ? 'aria-current="page"' : ""}>${icon("pin")}<span>Find My Otter<small>TEST</small></span></a>
         <a href="#more" data-action="share-app">${icon("share")}<span>Share app</span></a></div>`;
     requestAnimationFrame(() => p.classList.add("open")); document.body.classList.add("more-open");
     const ml = document.querySelector(".more-link"); if (ml) ml.setAttribute("aria-expanded", "true");
