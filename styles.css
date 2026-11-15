@@ -844,3 +844,11 @@ body { background: transparent; }
   .wx-btn .wx-more { margin: 0; white-space: nowrap; flex: none; }
 }
 @media (min-width: 900px) { .hero > .hud-gauges { margin-top: 0; margin-left: 18%; } }
+/* Jarvis window always fits the screen (15 Nov): messages scroll, the type bar and mic stay visible */
+.sheet:has(.jarvis) { max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overflow: hidden; display: flex; flex-direction: column; }
+.jarvis { display: flex; flex-direction: column; gap: 12px; min-height: 0; flex: 1; }
+.jarvis .jarvis-log { flex: 1 1 auto; min-height: 80px; max-height: none; overflow-y: auto; }
+.jarvis .suggest { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; flex: none; padding-bottom: 2px; }
+.jarvis .suggest::-webkit-scrollbar { display: none; }
+.jarvis .suggest button { flex: none; white-space: nowrap; }
+.jarvis .jarvis-input, .jarvis .jarvis-opts, .jarvis .card-head { flex: none; }
