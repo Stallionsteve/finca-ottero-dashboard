@@ -931,3 +931,5 @@ svg[aria-hidden="true"] { overflow: visible; }
 #jarvis-fab.zip-in { animation: fabzip .6s ease .35s; }
 @keyframes fabzip { 0% { transform: scale(1); } 35% { transform: scale(1.22); filter: drop-shadow(0 0 22px #2ee6d6); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .jhud, .jhud * { animation: none !important; transition: opacity .2s !important; } }
+.jhud[data-state="followup"] .h-r1 circle { stroke-opacity: .9; animation-duration: 7s; }
+.jhud[data-state="followup"] .jhud-state { animation: hudblink 1.6s ease-in-out infinite; }

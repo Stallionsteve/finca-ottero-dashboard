@@ -1636,12 +1636,17 @@
   async function deliver(speech, ttsUrl) {
     addMsg("j", speech || "I'm afraid I have no answer for that.");
     const reply = jReply();
+    const asks = /\?\s*["”']?\s*$|\?\s+\S{0,20}$|anything else|would you like|shall i|do you want/i.test((speech || "").trim());
     if (hud.on) hud.say(speech || "I'm afraid I have no answer for that.");
     if (reply === "device" && ttsUrl && J.audio) {
       J.audio.src = /^https?:/.test(ttsUrl) ? ttsUrl : store.hassUrl + ttsUrl;
-      if (hud.on) { J.audio.onended = () => hud.close(700); J.audio.onerror = () => hud.close(2500); }
+      if (hud.on) { J.audio.onended = () => (asks ? hud.followUp() : hud.close(700)); J.audio.onerror = () => hud.close(2500); }
       J.audio.play().catch(() => { if (hud.on) hud.close(3500); });
-    } else if (hud.on) hud.close(reply === "none" ? 5000 : 3500);
+    } else if (hud.on) {
+      // spoken on another speaker (or text only): wait roughly as long as the reply takes to say, then follow up or close
+      const ms = Math.min(15000, 900 + (speech || "").length * 62);
+      if (asks && reply !== "none") setTimeout(() => hud.on && hud.followUp(), ms); else hud.close(reply === "none" ? 5000 : ms);
+    }
     else if (reply !== "device" && reply !== "none" && speech && store.mode === "live") {
       try { const pl = jarvisPipeline(); await svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }); } catch { /* toast shown */ }
     }
@@ -1762,7 +1767,7 @@
       };
       tick();
     },
-    state(s) { if (!hud.el) return; hud.el.dataset.state = s; hud.el.querySelector(".jhud-state").textContent = { listening: "Listening…", thinking: "Thinking…", speaking: "" }[s] || ""; },
+    state(s) { if (!hud.el) return; hud.el.dataset.state = s; hud.el.querySelector(".jhud-state").textContent = { listening: "Listening…", followup: "Go ahead…", thinking: "Thinking…", speaking: "" }[s] || ""; },
     heard(t) { if (hud.el) hud.el.querySelector(".jhud-heard").textContent = t ? `“${t}”` : ""; },
     say(t) { if (!hud.el) return; hud.state("speaking"); hud.el.querySelector(".jhud-say").textContent = t || ""; },
     close(after = 0) {
@@ -1773,6 +1778,7 @@
         hud.on = false; hud.el = null; cancelAnimationFrame(hud.raf); setTimeout(() => el.remove(), 650);
       }, after);
     },
+    followUp() { if (!hud.on) return; hud.heard(""); listen(true); },
     cancel() { if (J.listening) J.listening.stop(); if (J.audio) { try { J.audio.pause(); } catch { /* fine */ } } hud.close(0); }
   };
   function voiceTap() {
@@ -1783,7 +1789,7 @@
     if (hud.on) { hud.cancel(); return; }
     hud.open(); listen();
   }
-  async function listen() {
+  async function listen(followUp = false) {
     if (J.listening) { J.listening.stop(); return; }
     if (nativeAssist()) { closeLayer(); return; }
     primeAudio();
@@ -1815,7 +1821,10 @@
       handler = null;  // nothing more may be sent for this run (stray audio caused "non-existing handler" errors)
     };
     J.listening = { stop };
-    $("#jmic") && $("#jmic").classList.add("listening"); if (hud.on) hud.state("listening");
+    $("#jmic") && $("#jmic").classList.add("listening"); if (hud.on) hud.state(followUp ? "followup" : "listening");
+    // Follow-up (15 Nov): after a question from Jarvis, listen up to 10 s for an answer; silence → fold away quietly.
+    let heardSomething = !followUp, quietT = 0;
+    if (followUp) quietT = setTimeout(() => { if (!heardSomething) { J.followSilent = true; stop(); } }, 10000);
     proc.onaudioprocess = e => {
       if (handler === null || !J.listening) return;
       const inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio);
@@ -1829,13 +1838,16 @@
     let speech = "", url = "";
     await runPipeline(pipelineMsg("stt", reply, { sample_rate: 16000 }), ev => {
       if (ev.type === "run-start") handler = ev.data.runner_data.stt_binary_handler_id;
+      if (ev.type === "stt-vad-start") { heardSomething = true; clearTimeout(quietT); }
       if (ev.type === "stt-vad-end") stop();
       if (ev.type === "stt-end") { addMsg("me", ev.data.stt_output.text); if (hud.on) hud.heard(ev.data.stt_output.text); }
       if (ev.type === "intent-end") { const o = ev.data.intent_output; speech = o.response.speech.plain.speech; J.convId = o.conversation_id; }
       if (ev.type === "tts-end") url = ev.data.tts_output.url;
       if (ev.type === "error") { stop(); if (!speech) speech = ev.data.code === "stt-no-text-recognized" ? "Sorry, I didn't catch that." : `Something went wrong: ${ev.data.message}`; }
     });
-    stop();
+    stop(); clearTimeout(quietT);
+    if (followUp && (J.followSilent || !heardSomething || /didn't catch that/i.test(speech))) { J.followSilent = false; if (hud.on) hud.close(0); return; }
+    J.followSilent = false;
     await deliver(speech, url);
   }
 
