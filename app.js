@@ -1637,7 +1637,7 @@
     const reply = $("#jreply") ? $("#jreply").value : "device";
     if (reply === "device" && ttsUrl && J.audio) { J.audio.src = /^https?:/.test(ttsUrl) ? ttsUrl : store.hassUrl + ttsUrl; J.audio.play().catch(() => {}); }
     else if (reply !== "device" && reply !== "none" && speech && store.mode === "live") {
-      try { await svc("script", "turn_on", { variables: { message: speech, speaker: reply } }, { entity_id: C.jarvis.sayScript }); } catch { /* toast shown */ }
+      try { const pl = jarvisPipeline(); await svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }); } catch { /* toast shown */ }
     }
   }
   function runPipeline(msg, handlers) {
