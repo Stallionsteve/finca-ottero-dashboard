@@ -60,6 +60,7 @@ window.FincaDemo = (() => {
     ent("binary_sensor.hue_motion_sensor_1", "off", { friendly_name: "Hue Motion Sensor 1", device_class: "motion" }, { platform: "hue", changed: minsAgo(70), area: "hall" });
 
     const mp = (id, name, area, state, extra = {}) => ent(id, state, { friendly_name: name, volume_level: 0.3, ...extra }, { area, platform: "sonos" });
+    ent("media_player.bar_bar", "idle", { friendly_name: "Bar", source_list: ["Line-in", "Talk Radio Europe", "Capital London", "Apple Radio Dance", "Café del Mar Radio (official)", "Bbc 6", "Mallorca Sunshine Radio", "Classic Road Trip Songs", "Marvin Gaye", "Hiphop"] }, { platform: "sonos" });
     // Find My Otter demo: Steve at home, Hollie in Marbella
     ent("zone.home", "1", { friendly_name: "Home", latitude: 36.44012, longitude: -5.12847, radius: 100, icon: "mdi:home" });
     ent("person.steven_bealey", "home", { friendly_name: "Steven Bealey", latitude: 36.44019, longitude: -5.12851, gps_accuracy: 12, source: "device_tracker.steve_iphone" }, { changed: minsAgo(35) });

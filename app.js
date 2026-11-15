@@ -1033,13 +1033,14 @@
           <span class="row-sub">${ms.sel ? `Selected: <b style="color:var(--sand)">${esc(/^liked songs/i.test(ms.sel.name) ? "Liked Songs (shuffled)" : ms.sel.name.trim())}</b>` : ms.q ? `Plays “${esc(ms.q)}”` : "Search, pick a result, choose speakers, play"}</span></div>
       </form>
       ${(() => { const fav = sonosFavs(); if (!fav.length) return "";
-        const isRadio = f => /radio|bbc|1xtra|wfmu|\bfm\b|talk|capital|heart|smooth|apple music 1/i.test(f);
-        const opt = f => `<option value="${esc(f)}">${esc(f)}</option>`;
-        return `<div class="fav-pick"><select class="sel" id="fav-sel" aria-label="Radio and Sonos favourites">
-          <option value="">Radio &amp; Sonos favourites…</option>
-          <optgroup label="Radio">${fav.filter(isRadio).map(opt).join("")}</optgroup>
-          <optgroup label="Playlists and songs">${fav.filter(f => !isRadio(f)).map(opt).join("")}</optgroup>
-        </select><button type="button" class="btn" data-favgo="1">${icon("radio")}Play</button></div>`; })()}
+        // HUD station picker (15 Nov): the phone's own dropdown couldn't be styled. Tap a station = plays on the speakers picked above.
+        const isRadio = f => /radio|bbc|1xtra|wfmu|\bfm\b|talk|capital|heart|smooth|apple music 1|kiss|global/i.test(f);
+        const card = f => `<button type="button" class="st-card" data-favplay="${esc(f)}"><span class="st-ico">${icon(isRadio(f) ? "radio" : "music")}</span><span class="st-name">${esc(f.replace(/\s*\(official\)/i, ""))}</span></button>`;
+        const radio = fav.filter(isRadio), lists = fav.filter(f => !isRadio(f));
+        return `<details class="st-pick" ${mem.get("st.open", "") === "1" ? "open" : ""}><summary><span class="st-sum">${icon("radio")}Radio &amp; Sonos favourites</span><span class="st-count">${fav.length}</span></summary>
+          <div class="st-sec">Radio</div><div class="st-grid">${radio.map(card).join("")}</div>
+          ${lists.length ? `<div class="st-sec">Playlists and songs</div><div class="st-grid">${lists.map(card).join("")}</div>` : ""}
+        </details>`; })()}
     </article>`;
   }
   // Now playing (14 Nov): big cover art, title, a progress bar you can drag to skip along, back / play-pause / next.
@@ -1999,8 +2000,9 @@
       .catch(() => { setPlay("fail", 3500); toast(`Couldn't play "${q}". Spotify may be busy; try again in a minute.`); });
   });
   document.addEventListener("click", ev => {
-    const f = ev.target.closest("[data-favgo]"); if (!f) return;
-    const sel = $("#fav-sel"); if (!sel || !sel.value) { toast("Choose a station first"); return; }
+    const f = ev.target.closest("[data-favplay]"); if (!f) return;
+    const sel = { value: f.dataset.favplay };
+    document.querySelectorAll(".st-card.on").forEach(x => x.classList.remove("on")); f.classList.add("on");
     const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => SONOS_OF[b.dataset.spk]).filter(Boolean);
     if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
     const lead = picked[0], fav = sel.value;
@@ -2046,6 +2048,7 @@
     if (drop.length) svc("media_player", "unjoin", {}, { entity_id: drop }).then(() => toast(drop.length === 1 ? `${nmOf(drop[0])} left the music` : `${drop.length} speakers left the music`)).catch(() => null);
   }
   const nmOf = e => /^media_player\.tv_room(_tv_room)?$/.test(e) ? "Living room" : (st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
+  document.addEventListener("toggle", ev => { if (ev.target.classList && ev.target.classList.contains("st-pick")) mem.set("st.open", ev.target.open ? "1" : ""); }, true);
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
     const t = ev.target;

@@ -933,3 +933,24 @@ svg[aria-hidden="true"] { overflow: visible; }
 @media (prefers-reduced-motion: reduce) { .jhud, .jhud * { animation: none !important; transition: opacity .2s !important; } }
 .jhud[data-state="followup"] .h-r1 circle { stroke-opacity: .9; animation-duration: 7s; }
 .jhud[data-state="followup"] .jhud-state { animation: hudblink 1.6s ease-in-out infinite; }
+
+/* HUD station picker (15 Nov) */
+.st-pick { margin-top: 14px; border: 1px solid color-mix(in srgb, var(--turq) 35%, transparent); border-radius: 18px; background: rgba(10, 15, 36, .45); box-shadow: inset 0 0 18px -10px var(--turq); }
+.st-pick > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; cursor: pointer; }
+.st-pick > summary::-webkit-details-marker { display: none; }
+.st-sum { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; } .st-sum svg { width: 20px; height: 20px; color: var(--turq); flex: none; }
+.st-count { font: 500 12px var(--font-data); color: var(--turq); border: 1px solid color-mix(in srgb, var(--turq) 45%, transparent); border-radius: 999px; padding: 2px 9px; }
+.st-pick > summary::after { content: "›"; color: var(--turq); font-size: 20px; transition: transform .2s; margin-left: 4px; }
+.st-pick[open] > summary::after { transform: rotate(90deg); }
+.st-sec { padding: 4px 16px 8px; font: 700 11px var(--font-display); letter-spacing: .22em; text-transform: uppercase; color: color-mix(in srgb, var(--turq) 75%, var(--muted)); display: flex; align-items: center; gap: 10px; }
+.st-sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--turq) 40%, transparent), transparent); }
+.st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 0 12px 14px; }
+.st-card { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: 14px; text-align: left; cursor: pointer; color: var(--sand); font: inherit; font-size: 14px;
+  background: linear-gradient(160deg, rgba(46, 230, 214, .07), rgba(10, 15, 36, .5)); border: 1px solid color-mix(in srgb, var(--turq) 22%, transparent); transition: border-color .15s, box-shadow .15s, transform .1s; }
+.st-card:hover { border-color: color-mix(in srgb, var(--turq) 60%, transparent); }
+.st-card:active { transform: scale(.97); }
+.st-card.on { border-color: var(--turq); box-shadow: 0 0 16px -4px var(--turq); }
+.st-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--turq); border: 1px dashed color-mix(in srgb, var(--turq) 50%, transparent); }
+.st-ico svg { width: 16px; height: 16px; }
+.st-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+.st-pick > summary { justify-content: flex-start; } .st-count { margin-left: auto; }
