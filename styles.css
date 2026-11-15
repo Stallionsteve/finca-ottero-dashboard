@@ -895,3 +895,5 @@ svg[aria-hidden="true"] { overflow: visible; }
 .otter-pin { line-height: 1; } .otter-pin b { display: block; line-height: 30px; text-align: center; width: 100%; }
 .otter-pin.at-home { animation-name: otterpinghome; }
 @keyframes otterpinghome { 0% { box-shadow: 0 0 0 0 rgba(46,230,214,.5), 0 0 18px rgba(46,230,214,.8); } 100% { box-shadow: 0 0 0 16px rgba(46,230,214,0), 0 0 18px rgba(46,230,214,.8); } }
+.more-panel .test-tile small { display: block; font-size: 9px; letter-spacing: .12em; color: var(--warn); margin-top: 2px; }
+.more-panel .test-tile { border-style: dashed; }

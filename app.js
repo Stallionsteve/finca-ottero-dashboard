@@ -1214,8 +1214,8 @@
           <span class="ico otter-dot ${o.home ? "home" : ""}">${icon(o.home ? "home" : "pin")}</span>
           <div class="row-body"><div class="row-title">${esc(o.name)}</div>
             <div class="row-sub">${o.home ? "At home" : `Away · ${o.km === null ? "" : o.km < 1 ? `${Math.round(o.km * 1000)} m` : `${o.km.toFixed(1)} km`} from home`} · since ${ago(o.since)}${o.bat !== null ? ` · phone ${o.bat}%` : ""}</div></div>
-          <button class="btn btn-sm" data-otter="${o.id}">Show</button></div></article>`).join("") || '<p class="empty">Once Hollie and Steve have the Home Assistant app with location on, they appear here.</p>'}</div>
-      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each iPhone (Settings → Companion app → Location: Always). Private to this house; no subscription. Map © OpenStreetMap, © CARTO.</span></p>
+          <button class="btn btn-sm" data-otter="${o.id}">Show</button></div></article>`).join("") || '<p class="empty">Once each phone has the Home Assistant app with location on, it appears here.</p>'}</div>
+      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each phone (Steve's iPhone: Location “Always”; Hollie's Android: location “Allow all the time” and battery optimisation off for the app). Private to this house; no subscription. Map © OpenStreetMap, © CARTO.</span></p>
     </section>`;
   }
   function drawOtterMap() {
@@ -1565,6 +1565,7 @@
     if (!p) { p = document.createElement("div"); p.id = "more-panel"; p.className = "more-panel"; document.body.appendChild(p); }
     const cur = current();
     p.innerHTML = `<div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-more" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")}
+        <a href="#otters" data-action="close-more" class="test-tile" ${cur === "otters" ? 'aria-current="page"' : ""}>${icon("pin")}<span>Find My Otter<small>TEST</small></span></a>
         <a href="#more" data-action="share-app">${icon("share")}<span>Share app</span></a></div>`;
     requestAnimationFrame(() => p.classList.add("open")); document.body.classList.add("more-open");
     const ml = document.querySelector(".more-link"); if (ml) ml.setAttribute("aria-expanded", "true");
