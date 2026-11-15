@@ -1229,10 +1229,10 @@
         fm.map = L.map(el2, { zoomControl: false, attributionControl: true });
         // Map tiles (15 Nov): Esri dark grey (free, no key) with street names; if those tiles fail, Esri's street map tinted dark.
         const esri = n => `https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`;
-        const base = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 16, attribution: "Map © Esri, OpenStreetMap contributors" }).addTo(fm.map);
-        const labels = L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { maxZoom: 16 }).addTo(fm.map);
+        const base = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 18, maxNativeZoom: 15, attribution: "Map © Esri, OpenStreetMap contributors" }).addTo(fm.map);
+        const labels = L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { maxZoom: 18, maxNativeZoom: 15 }).addTo(fm.map);
         let errs = 0;
-        base.on("tileerror", () => { if (++errs !== 4) return; fm.map.removeLayer(base); fm.map.removeLayer(labels);
+        base.on("tileerror", () => { if (++errs !== 12) return; fm.map.removeLayer(base); fm.map.removeLayer(labels);
           L.tileLayer(esri("World_Street_Map"), { maxZoom: 19, className: "osm-dark", attribution: "Map © Esri" }).addTo(fm.map); });
         fm.layer = L.layerGroup().addTo(fm.map);
       }
