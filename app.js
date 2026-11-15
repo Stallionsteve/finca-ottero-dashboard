@@ -1990,7 +1990,10 @@
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
     setPlay("busy");
-    group.then(() => svc("music_assistant", "play_media", data, { entity_id: targets }))
+    // stop Spotify on the TV first (one Spotify stream per account; the TV used to grab it from the Sonos)
+    group.then(() => store.mode === "demo" ? null : svc("script", "turn_on", {}, { entity_id: "script.finca_free_spotify" }).catch(() => null))
+      .then(() => new Promise(r => setTimeout(r, 800)))
+      .then(() => svc("music_assistant", "play_media", data, { entity_id: targets }))
       .then(() => pick && /^liked songs/i.test(pick.name) ? svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: targets[0] }).catch(() => null) : null)
       .then(() => { setPlay("ok", 3000); toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
       .catch(() => { setPlay("fail", 3500); toast(`Couldn't play "${q}". Spotify may be busy; try again in a minute.`); });
