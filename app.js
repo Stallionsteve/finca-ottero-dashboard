@@ -119,6 +119,7 @@
     share: '<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
     film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
     gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.2"/>',
+    pin: '<path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -1183,7 +1184,62 @@
   }
 
   // ---------- render ----------
-  const VIEWS = { home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices, health: viewHealth };
+  // ---------- Find My Otter (15 Nov, draft/test: open #otters; not in the menu yet) ----------
+  // Where Steve and Hollie are, from the Home Assistant app on each iPhone (no subscription). Map: OpenStreetMap data, CARTO dark tiles.
+  const fm = { map: null, layer: null, loading: false };
+  function loadLeaflet(cb) {
+    if (window.L) return cb();
+    if (fm.loading) return; fm.loading = true;
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
+    const js = document.createElement("script"); js.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"; js.onload = () => { fm.loading = false; cb(); }; document.head.appendChild(js);
+  }
+  const kmBetween = (a, b, c, d) => { const R = 6371, r = x => x * Math.PI / 180, dl = r(c - a), dg = r(d - b);
+    const h = Math.sin(dl / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dg / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+  function otters() {
+    const home = st("zone.home"), H = home && home.attributes;
+    return all("person").filter(p => p.attributes.latitude !== undefined).map(p => {
+      const a = p.attributes, first = ({ Steven: "Steve" })[nm(p).split(" ")[0]] || nm(p).split(" ")[0];
+      const bat = all("sensor").find(s => s.attributes.device_class === "battery" && new RegExp(first.slice(0, 4), "i").test(s.entity_id + nm(s)) && /iphone|phone/i.test(s.entity_id + nm(s)));
+      const km = H ? kmBetween(H.latitude, H.longitude, a.latitude, a.longitude) : null;
+      return { id: p.entity_id, name: first, home: p.state === "home", lat: a.latitude, lon: a.longitude, km, since: p.last_changed, bat: bat && ok(bat) ? Math.round(+bat.state) : null };
+    });
+  }
+  function viewOtters() {
+    const list = otters(), away = list.filter(o => !o.home);
+    setTimeout(drawOtterMap, 0);
+    return `<section class="view">
+      <div class="page-head"><div><h1>Find My Otter</h1><p>${list.length ? (away.length === list.length ? "Both away from home" : away.length ? `${away.map(o => o.name).join(" and ")} out` : "Both at home") : "No phones sharing location yet"}</p></div><span class="pill warn">Test version</span></div>
+      <article class="card otter-map-card"><div id="otter-map" class="otter-map" role="img" aria-label="Map showing where Steve and Hollie are"></div></article>
+      <div class="grid g-2">${list.map(o => `<article class="card"><div class="row" style="padding:0">
+          <span class="ico otter-dot ${o.home ? "home" : ""}">${icon(o.home ? "home" : "pin")}</span>
+          <div class="row-body"><div class="row-title">${esc(o.name)}</div>
+            <div class="row-sub">${o.home ? "At home" : `Away · ${o.km === null ? "" : o.km < 1 ? `${Math.round(o.km * 1000)} m` : `${o.km.toFixed(1)} km`} from home`} · since ${ago(o.since)}${o.bat !== null ? ` · phone ${o.bat}%` : ""}</div></div>
+          <button class="btn btn-sm" data-otter="${o.id}">Show</button></div></article>`).join("") || '<p class="empty">Once Hollie and Steve have the Home Assistant app with location on, they appear here.</p>'}</div>
+      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each iPhone (Settings → Companion app → Location: Always). Private to this house; no subscription. Map © OpenStreetMap, © CARTO.</span></p>
+    </section>`;
+  }
+  function drawOtterMap() {
+    const el = $("#otter-map"); if (!el) return;
+    loadLeaflet(() => {
+      const el2 = $("#otter-map"); if (!el2) return;
+      if (!fm.map || fm.map.getContainer() !== el2) {
+        if (fm.map) fm.map.remove();
+        fm.map = L.map(el2, { zoomControl: false, attributionControl: true });
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: "© OpenStreetMap © CARTO" }).addTo(fm.map);
+        fm.layer = L.layerGroup().addTo(fm.map);
+      }
+      fm.layer.clearLayers();
+      const home = st("zone.home"), pts = [];
+      if (home) { const H = home.attributes; L.circle([H.latitude, H.longitude], { radius: H.radius || 100, color: "#2ee6d6", weight: 1.5, fillOpacity: .12 }).addTo(fm.layer);
+        L.marker([H.latitude, H.longitude], { icon: L.divIcon({ className: "otter-pin home-pin", html: "⌂", iconSize: [26, 26] }) }).addTo(fm.layer); pts.push([H.latitude, H.longitude]); }
+      otters().forEach(o => { L.marker([o.lat, o.lon], { icon: L.divIcon({ className: "otter-pin" + (o.home ? " at-home" : ""), html: `<b>${esc(o.name[0])}</b>`, iconSize: [34, 34] }) })
+        .bindTooltip(o.name, { direction: "top", offset: [0, -16] }).addTo(fm.layer); pts.push([o.lat, o.lon]); });
+      if (pts.length > 1 && !fm.fitted) { fm.map.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); fm.fitted = true; } else if (pts.length === 1) fm.map.setView(pts[0], 15);
+      setTimeout(() => fm.map.invalidateSize(), 50);
+    });
+  }
+  document.addEventListener("click", ev => { const b = ev.target.closest("[data-otter]"); if (!b || !fm.map) return; const o = otters().find(x => x.id === b.dataset.otter); if (o) fm.map.setView([o.lat, o.lon], 16); });
+  const VIEWS = { otters: viewOtters, home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices, health: viewHealth };
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
   let lastHtml = "", lastView = "";

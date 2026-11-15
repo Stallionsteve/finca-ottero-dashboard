@@ -60,6 +60,12 @@ window.FincaDemo = (() => {
     ent("binary_sensor.hue_motion_sensor_1", "off", { friendly_name: "Hue Motion Sensor 1", device_class: "motion" }, { platform: "hue", changed: minsAgo(70), area: "hall" });
 
     const mp = (id, name, area, state, extra = {}) => ent(id, state, { friendly_name: name, volume_level: 0.3, ...extra }, { area, platform: "sonos" });
+    // Find My Otter demo: Steve at home, Hollie in Marbella
+    ent("zone.home", "1", { friendly_name: "Home", latitude: 36.44012, longitude: -5.12847, radius: 100, icon: "mdi:home" });
+    ent("person.steven_bealey", "home", { friendly_name: "Steven Bealey", latitude: 36.44019, longitude: -5.12851, gps_accuracy: 12, source: "device_tracker.steve_iphone" }, { changed: minsAgo(35) });
+    ent("person.hollie_rolla", "not_home", { friendly_name: "Hollie Rolla", latitude: 36.5101, longitude: -4.8826, gps_accuracy: 20, source: "device_tracker.hollie_iphone" }, { changed: minsAgo(12) });
+    ent("sensor.steve_iphone_battery_level", "86", { friendly_name: "Steve iPhone Battery level", unit_of_measurement: "%", device_class: "battery" });
+    ent("sensor.hollie_iphone_battery_level", "54", { friendly_name: "Hollie iPhone Battery level", unit_of_measurement: "%", device_class: "battery" });
     mp("media_player.living_room", "Living Room", "living", "playing", { media_title: "Miami Disco", media_artist: "Sunset Radio", media_album_name: "Costa Nights", media_duration: 245, media_position: 62, media_position_updated_at: new Date().toISOString(), volume_level: 0.3, entity_picture: "icon-512.png" });
     mp("media_player.terrace", "Terrace", "terrace", "paused");
     mp("media_player.master_bedroom", "Master Bedroom", "master", "idle");

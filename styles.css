@@ -881,3 +881,17 @@ svg[aria-hidden="true"] { overflow: visible; }
 .switch.mode-busy { opacity: .85; }
 .tile.mode-busy-tile .ico::before { animation-duration: 1.2s !important; border-color: var(--turq); }
 @keyframes modepulse { 50% { box-shadow: 0 0 18px -4px var(--turq); } }
+/* Find My Otter (draft) */
+.otter-map-card { padding: 8px; margin-bottom: 16px; }
+.otter-map { height: min(52vh, 460px); border-radius: 18px; overflow: hidden; background: #0d1530; }
+.otter-pin { display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, rgba(255,92,138,.95), rgba(255,154,60,.9)); color: #1a0f20;
+  border: 2px solid #fff3; box-shadow: 0 0 0 6px rgba(255,92,138,.25), 0 0 18px rgba(255,92,138,.8); font: 700 15px var(--font-display); animation: otterping 2.4s ease-out infinite; }
+.otter-pin.at-home { background: radial-gradient(circle, #2ee6d6, #149e94); box-shadow: 0 0 0 6px rgba(46,230,214,.22), 0 0 18px rgba(46,230,214,.8); }
+.home-pin { color: #2ee6d6; font-size: 20px; background: none; border: 0; box-shadow: none; animation: none; text-shadow: 0 0 8px #2ee6d6; }
+@keyframes otterping { 0% { box-shadow: 0 0 0 0 rgba(255,92,138,.5), 0 0 18px rgba(255,92,138,.8); } 100% { box-shadow: 0 0 0 16px rgba(255,92,138,0), 0 0 18px rgba(255,92,138,.8); } }
+.otter-dot.home { --tint: var(--turq); } .otter-dot { --tint: var(--coral); }
+.leaflet-container { font: inherit; } .leaflet-control-attribution { background: rgba(10,15,36,.7) !important; color: #8a94b8 !important; font-size: 10px; }
+.leaflet-control-attribution a { color: #8a94b8 !important; }
+.otter-pin { line-height: 1; } .otter-pin b { display: block; line-height: 30px; text-align: center; width: 100%; }
+.otter-pin.at-home { animation-name: otterpinghome; }
+@keyframes otterpinghome { 0% { box-shadow: 0 0 0 0 rgba(46,230,214,.5), 0 0 18px rgba(46,230,214,.8); } 100% { box-shadow: 0 0 0 16px rgba(46,230,214,0), 0 0 18px rgba(46,230,214,.8); } }
