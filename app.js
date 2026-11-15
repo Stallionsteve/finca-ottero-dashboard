@@ -1216,7 +1216,7 @@
           <div class="row-body"><div class="row-title">${esc(o.name)}</div>
             <div class="row-sub">${o.home ? "At home" : `Away · ${o.km === null ? "" : o.km < 1 ? `${Math.round(o.km * 1000)} m` : `${o.km.toFixed(1)} km`} from home`} · since ${ago(o.since)}${o.bat !== null ? ` · phone ${o.bat}%` : ""}</div></div>
           <button class="btn btn-sm" data-otter="${o.id}">Show</button></div></article>`).join("") || '<p class="empty">Once each phone has the Home Assistant app with location on, it appears here.</p>'}</div>
-      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each phone (Steve's iPhone: Location “Always”; Hollie's Android: location “Allow all the time” and battery optimisation off for the app). Private to this house; no subscription. Map © OpenStreetMap contributors.</span></p>
+      <p class="note">${icon("info")}<span>Location comes from the Home Assistant app on each phone (Steve's iPhone: Location “Always”; Hollie's Android: location “Allow all the time” and battery optimisation off for the app). Private to this house; no subscription. Map © Esri, OpenStreetMap contributors.</span></p>
     </section>`;
   }
   function drawOtterMap() {
@@ -1226,8 +1226,13 @@
       if (!fm.map || fm.map.getContainer() !== el2) {
         if (fm.map) fm.map.remove();
         fm.map = L.map(el2, { zoomControl: false, attributionControl: true });
-        // OpenStreetMap's own tiles (free, no key), tinted dark in CSS to match the app (CARTO started asking for a key, 15 Nov)
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, className: "osm-dark", attribution: "© OpenStreetMap contributors" }).addTo(fm.map);
+        // Map tiles (15 Nov): Esri dark grey (free, no key) with street names; if those tiles fail, Esri's street map tinted dark.
+        const esri = n => `https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`;
+        const base = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 16, attribution: "Map © Esri, OpenStreetMap contributors" }).addTo(fm.map);
+        const labels = L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { maxZoom: 16 }).addTo(fm.map);
+        let errs = 0;
+        base.on("tileerror", () => { if (++errs !== 4) return; fm.map.removeLayer(base); fm.map.removeLayer(labels);
+          L.tileLayer(esri("World_Street_Map"), { maxZoom: 19, className: "osm-dark", attribution: "Map © Esri" }).addTo(fm.map); });
         fm.layer = L.layerGroup().addTo(fm.map);
       }
       fm.layer.clearLayers();
@@ -1236,7 +1241,7 @@
         L.marker([H.latitude, H.longitude], { icon: L.divIcon({ className: "otter-pin home-pin", html: "⌂", iconSize: [26, 26] }) }).addTo(fm.layer); pts.push([H.latitude, H.longitude]); }
       otters().forEach(o => { L.marker([o.lat, o.lon], { icon: L.divIcon({ className: "otter-pin" + (o.home ? " at-home" : ""), html: `<b>${esc(o.name[0])}</b>`, iconSize: [34, 34] }) })
         .bindTooltip(o.name, { direction: "top", offset: [0, -16] }).addTo(fm.layer); pts.push([o.lat, o.lon]); });
-      if (pts.length > 1 && !fm.fitted) { fm.map.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }); fm.fitted = true; } else if (pts.length === 1) fm.map.setView(pts[0], 15);
+      if (pts.length > 1 && !fm.fitted) { fm.map.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); fm.fitted = true; } else if (pts.length === 1) fm.map.setView(pts[0], 16);
       setTimeout(() => fm.map.invalidateSize(), 50);
     });
   }
