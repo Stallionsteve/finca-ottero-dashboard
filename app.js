@@ -1792,7 +1792,31 @@
     if (b.dataset.spkAll) { const allOn = btns.every(x => x.getAttribute("aria-pressed") === "true"); btns.forEach(x => x.setAttribute("aria-pressed", String(!allOn))); }
     else b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
     mem.set("music.speakers", btns.filter(x => x.getAttribute("aria-pressed") === "true").map(x => x.dataset.spk).join(","));
+    liveRegroup(b.dataset.spkAll ? btns : [b]);
   });
+  // Music already playing (15 Nov): tapping a speaker on joins it to what's playing straight away; tapping off takes it out.
+  function liveRegroup(changed) {
+    const canGroup = e => (((store.states[e] || {}).attributes || {}).supported_features || 0) & 524288;
+    const ma = [...document.querySelectorAll("#music-where [data-spk]")].map(x => x.dataset.spk);
+    const lead = ma.map(st).filter(Boolean).filter(s => s.state === "playing" && canGroup(s.entity_id))
+      .sort((a, b) => ((b.attributes.group_members || []).length - (a.attributes.group_members || []).length))[0];
+    if (!lead) return;   // nothing playing: the selection just waits for Play
+    const members = lead.attributes.group_members || [lead.entity_id];
+    const add = [], drop = [];
+    changed.forEach(x => {
+      const e = x.dataset.spk, on = x.getAttribute("aria-pressed") === "true";
+      if (e === lead.entity_id) return;
+      if (on && !members.includes(e)) {
+        if (canGroup(e)) add.push(e); else toast(`${nmOf(e)} can't join a group; press Play to start it there too`);
+      }
+      if (!on && members.includes(e)) drop.push(e);
+    });
+    const real = drop;
+    if (add.length) svc("media_player", "join", { group_members: [...new Set(add)] }, { entity_id: lead.entity_id })
+      .then(() => toast(add.length === 1 ? `${nmOf(add[0])} joined the music` : `${add.length} speakers joined the music`)).catch(() => null);
+    if (real.length) svc("media_player", "unjoin", {}, { entity_id: real }).then(() => toast(real.length === 1 ? `${nmOf(real[0])} left the music` : `${real.length} speakers left the music`)).catch(() => null);
+  }
+  const nmOf = e => e === "media_player.tv_room" ? "Living room" : (st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
     const t = ev.target;
