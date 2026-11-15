@@ -1638,17 +1638,18 @@
     const reply = jReply();
     const asks = /\?\s*["”']?\s*$|\?\s+\S{0,20}$|anything else|would you like|shall i|do you want/i.test((speech || "").trim());
     if (hud.on) hud.say(speech || "I'm afraid I have no answer for that.");
+    // another speaker chosen under "Reply through": always send it there (also while the voice display is open)
+    if (reply !== "device" && reply !== "none" && speech && store.mode === "live") {
+      try { const pl = jarvisPipeline(); svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }).catch(() => {}); } catch { /* toast shown */ }
+    }
     if (reply === "device" && ttsUrl && J.audio) {
       J.audio.src = /^https?:/.test(ttsUrl) ? ttsUrl : store.hassUrl + ttsUrl;
       if (hud.on) { J.audio.onended = () => (asks ? hud.followUp() : hud.close(700)); J.audio.onerror = () => hud.close(2500); }
       J.audio.play().catch(() => { if (hud.on) hud.close(3500); });
     } else if (hud.on) {
-      // spoken on another speaker (or text only): wait roughly as long as the reply takes to say, then follow up or close
-      const ms = Math.min(15000, 900 + (speech || "").length * 62);
+      // spoken on another speaker (or text only): wait roughly as long as the reply takes to say (+ a moment to start), then follow up or close
+      const ms = Math.min(18000, 2500 + (speech || "").length * 62);
       if (asks && reply !== "none") setTimeout(() => hud.on && hud.followUp(), ms); else hud.close(reply === "none" ? 5000 : ms);
-    }
-    else if (reply !== "device" && reply !== "none" && speech && store.mode === "live") {
-      try { const pl = jarvisPipeline(); await svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }); } catch { /* toast shown */ }
     }
   }
   function runPipeline(msg, handlers) {
