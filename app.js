@@ -404,7 +404,7 @@
     const today = st("sensor.energy_production_today"), tom = st("sensor.energy_production_tomorrow"), peak = st("sensor.power_highest_peak_time_today");
     const rem = st("sensor.energy_production_today_remaining"), month = st("sensor.solar_room_fronius_symo_17_5_3_m_id_20_finca_solar_energy_this_month"), sav = st("sensor.finca_solar_savings_this_month");
     if (!today && !month && store.mode !== "demo") return "";
-    const n = x => x && ok(x) && !isNaN(+x.state) ? +x.state : null;
+    const n = x => x && ok(x) && !isNaN(+x.state) && !(/energy_production/.test(x.entity_id) && +x.state > 60) ? +x.state : null;   // Forecast.Solar sometimes reports impossible days
     const pk = peak && ok(peak) ? new Date(peak.state) : null;
     const best = pk && !isNaN(pk) ? `${pad(Math.max(0, pk.getHours() - 2))}:00–${pad(Math.min(23, pk.getHours() + 2))}:00` : null;
     const big = (v, u) => v === null ? "—" : `${Math.round(v)}<small> ${u}</small>`;
