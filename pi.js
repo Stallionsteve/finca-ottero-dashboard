@@ -76,7 +76,28 @@
         note: "Starting holding (simulated)", src: q.src });
     }
     F.toast("Virtual portfolio started: €100 Tesla + €100 Take-Two (simulated)");
+    syncToHA();
     draw();
+  }
+
+  // ---------- copy for Jarvis ----------
+  // Jarvis can't open the app, so the holdings (numbers only) are copied into a Home Assistant Text helper:
+  // "s:<start date>|TSLA:<shares>:<cost €>|TTWO:...|c:<cash €>|i:<money put in €>". The full ledger stays in user data.
+  const HOLD = "input_text.finca_portfolio_holdings";
+  async function syncToHA() {
+    if (F.store.mode === "demo" || !F.store.conn || !started()) return;
+    const p = positions(), first = pi.ledger.entries.find(e => e.kind === "deposit");
+    const v = ["s:" + String(first.at).slice(0, 10),
+      ...Object.entries(p.pos).filter(([, x]) => x.units > 1e-9).map(([sym, x]) => `${sym}:${x.units.toFixed(6)}:${x.costEur.toFixed(2)}`),
+      "c:" + p.cash.toFixed(2), "i:" + p.invested.toFixed(2)].join("|").slice(0, 255);
+    try {
+      if (!F.store.states[HOLD]) {
+        await F.store.conn.sendMessagePromise({ type: "input_text/create", name: "Finca portfolio holdings", icon: "mdi:chart-line", min: 0, max: 255, mode: "text" });
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      if ((F.store.states[HOLD] || {}).state !== v)
+        await F.store.conn.sendMessagePromise({ type: "call_service", domain: "input_text", service: "set_value", service_data: { value: v }, target: { entity_id: HOLD } });
+    } catch (e) { /* Jarvis copy only; the portfolio itself is unaffected */ }
   }
 
   // ---------- view ----------
@@ -137,6 +158,7 @@
       if (!pi.ledger) await load();
       if (Date.now() - pi.quotesAt > 5 * 60000) await fetchQuotes();
       draw();
+      syncToHA();
     }
   };
 })();
