@@ -120,6 +120,7 @@
     film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
     gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.2"/>',
     pin: '<path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/>',
+    chart: '<path d="M3 20h18"/><path d="M5 16l4.5-5 3.5 3 6-7.5"/><path d="M15.5 6.5H19V10"/>',
     tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<path d="M8 4.5v15M16 4.5v15"/>',
@@ -270,6 +271,7 @@
     { id: "devices", label: "Devices", icon: "plus", rail: true },
     { id: "health", label: "Checks", icon: "battery", rail: true },
     { id: "otters", label: "Find My Otter", icon: "pin", rail: true },
+    { id: "portfolio", label: "Portfolio", icon: "chart", rail: true, extra: true },
     { id: "jarvis", label: "Jarvis", icon: "mic", rail: true }
   ];
   function renderNav(cur) {
@@ -1247,7 +1249,25 @@
     });
   }
   document.addEventListener("click", ev => { const b = ev.target.closest("[data-otter]"); if (!b || !fm.map) return; const o = otters().find(x => x.id === b.dataset.otter); if (o) fm.map.setView([o.lat, o.lon], 16); });
-  const VIEWS = { otters: viewOtters, home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices, health: viewHealth };
+  // ---------- Portfolio Intelligence (16 Nov): separate module, loaded only when opened; the rest of the app never depends on it ----------
+  let piLoading = null;
+  function loadPI() {
+    if (window.FincaPI) return Promise.resolve();
+    if (piLoading) return piLoading;
+    window.FincaAPI = { store, icon, esc, toast, svc, mem };
+    const v = (window.FINCA_VERSION || "").split(" ")[0] || Date.now();
+    piLoading = new Promise((ok, bad) => {
+      const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "pi.css?v=" + v; document.head.appendChild(css);
+      const js = document.createElement("script"); js.src = "pi.js?v=" + v; js.onload = ok; js.onerror = () => { piLoading = null; bad(); }; document.head.appendChild(js);
+    });
+    return piLoading;
+  }
+  function viewPortfolio() {
+    setTimeout(() => loadPI().then(() => window.FincaPI.mount()).catch(() => { const el = $("#pi-root"); if (el) el.innerHTML = '<p class="empty">Portfolio Intelligence couldn\'t load right now. Everything else in the app is unaffected.</p>'; }), 0);
+    return `<section class="view"><div class="page-head"><div><h1>Portfolio</h1><p>Portfolio Intelligence · demo, paper trading only</p></div></div>
+      <div id="pi-root"><p class="row-sub">Loading…</p></div></section>`;
+  }
+  const VIEWS = { portfolio: viewPortfolio, otters: viewOtters, home: viewHome, lighting: viewLighting, climate: viewClimate, security: viewSecurity, gates: viewGates, energy: viewEnergy, pool: viewPool, media: viewMedia, devices: viewDevices, health: viewHealth };
   const current = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : "home"; };
   let pending = false;
   let lastHtml = "", lastView = "";
@@ -1357,7 +1377,7 @@
     if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
     if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
     if (a.nodeType !== 1) return;
-    if (a.id === "otter-map" && b.id === "otter-map") return;   // the map draws itself: never touch its inside
+    if ((a.id === "otter-map" && b.id === "otter-map") || (a.id === "pi-root" && b.id === "pi-root")) return;   // the map draws itself: never touch its inside
     const cam = a.tagName === "IMG" && a.hasAttribute("data-cam");
     if (cam && a.getAttribute("data-cam") !== b.getAttribute("data-cam")) { a.replaceWith(b); return; }
     for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
@@ -1573,8 +1593,10 @@
     if (p && p.classList.contains("open")) { closeMore(); return; }
     if (!p) { p = document.createElement("div"); p.id = "more-panel"; p.className = "more-panel"; document.body.appendChild(p); }
     const cur = current();
-    p.innerHTML = `<div class="more-grid">${NAV.filter(n => n.rail).map(n => `<a href="#${n.id}" data-action="close-more" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")}
-        <a href="#more" data-action="share-app">${icon("share")}<span>Share app</span></a></div>`;
+    p.innerHTML = `<div class="more-grid">${NAV.filter(n => n.rail && !n.extra).map(n => `<a href="#${n.id}" data-action="close-more" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")}
+        <a href="#more" data-action="share-app">${icon("share")}<span>Share app</span></a></div>
+      <div class="more-extras"><span>Extras</span></div>
+      <div class="more-grid"><a href="#portfolio" data-action="close-more" ${cur === "portfolio" ? 'aria-current="page"' : ""}>${icon("chart")}<span>Portfolio</span></a></div>`;
     requestAnimationFrame(() => p.classList.add("open")); document.body.classList.add("more-open");
     const ml = document.querySelector(".more-link"); if (ml) ml.setAttribute("aria-expanded", "true");
   }

@@ -1,0 +1,9 @@
+/* Portfolio Intelligence (module styles) */
+.pi-banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin-bottom: 16px; border-radius: 14px; font-size: 14px; color: var(--sand);
+  border: 1px solid rgba(255, 200, 87, .45); background: rgba(255, 200, 87, .08); }
+.pi-banner svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--warn); }
+.pi-big { font-family: var(--font-data); font-size: 34px; color: var(--sand); margin: 8px 0 4px; }
+.pi-big small { font-size: 14px; color: var(--muted); }
+.pi-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.pi-row b { font-family: var(--font-data); font-weight: 500; font-size: 17px; }
+.pi-up { color: #3ee6a0; } .pi-down { color: #ff6b7a; }
