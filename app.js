@@ -1289,6 +1289,7 @@
   const slideStart = ev => { if (ev.target && ev.target.type === "range") sliding = Date.now(); };
   const slideEnd = () => { if (sliding) { sliding = 0; if (pending) setTimeout(() => render(false), 350); } };
   ["pointerdown", "touchstart", "mousedown"].forEach(t => document.addEventListener(t, slideStart, { passive: true, capture: true }));
+  document.addEventListener("contextmenu", ev => { if (ev.target.closest && ev.target.closest("input[type=range], .media-ctl, .np-ctl")) ev.preventDefault(); }, { capture: true });
   ["pointerup", "pointercancel", "touchend", "touchcancel", "mouseup"].forEach(t => document.addEventListener(t, slideEnd, { passive: true, capture: true }));
   function render(scroll) {
     const a = document.activeElement;

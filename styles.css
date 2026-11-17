@@ -956,3 +956,8 @@ svg[aria-hidden="true"] { overflow: visible; }
 .st-pick > summary { justify-content: flex-start; } .st-count { margin-left: auto; }
 .jhud[data-state="ready"] .jhud-state { animation: hudblink 1.4s ease-in-out infinite; font-size: 15px; }
 .more-extras { display: flex; align-items: center; gap: 10px; margin: 12px 4px 8px; font: 700 10px var(--font-display); letter-spacing: .22em; text-transform: uppercase; color: color-mix(in srgb, var(--turq) 70%, var(--muted)); } .more-extras::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--turq) 40%, transparent), transparent); }
+
+/* 17 Nov: touching a slider on a phone/tablet opened the system copy/select menu, making it hard to drag.
+   Sliders (and the music cards around them) never select text or show that menu. */
+input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.media-ctl, .np-ctl, .bri { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
