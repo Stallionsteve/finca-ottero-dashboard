@@ -1137,6 +1137,19 @@
     try {
       if (store.mode === "demo") { dev.flows = Demo.flows ? Demo.flows() : []; }
       else {
+        // 21 Nov: cloud accounts (Ring, Tuya, Alexa, Sonoff/eWeLink) only list new devices when reloaded, so a tap on
+        // "Scan for devices" reloads them first. Hue and Sonos find new devices by themselves and are left alone.
+        if (force) {
+          dev.msg = "Asking Ring, Tuya, Alexa and Sonoff for new devices… (about a minute)"; lastHtml = ""; render(false);
+          const quiet = (domain, service, service_data) => store.conn.sendMessagePromise({ type: "call_service", domain, service, service_data }).catch(() => null);
+          const entries = await store.conn.sendMessagePromise({ type: "config_entries/get" }).catch(() => []);
+          const CLOUD = ["ring", "tuya", "alexa_devices", "alexa_media"];
+          await Promise.all((entries || []).filter(e => CLOUD.includes(e.domain) && e.state === "loaded")
+            .map(e => quiet("homeassistant", "reload_config_entry", { entry_id: e.entry_id })));
+          // Ring-MQTT (camera snapshots, motion, alarm sensors) and eWeLink pick up new devices when restarted.
+          await Promise.all(["03cabcc9_ring_mqtt", "81bc2df9_ewelink_smart_home_for_homeassistant_slug"].map(a => quiet("hassio", "addon_restart", { addon: a })));
+          await new Promise(r => setTimeout(r, 15000));
+        }
         const [flows, devices, areas] = await Promise.all([
           store.conn.sendMessagePromise({ type: "config_entries/flow/progress" }).catch(() => []),
           store.conn.sendMessagePromise({ type: "config/device_registry/list" }).catch(() => null),
@@ -1167,7 +1180,7 @@
           <div class="grow"><h3>${esc((f.context.title_placeholders || {}).name || f.handler)}</h3><div class="row-sub">Found by ${esc(f.handler.replace(/_/g, " "))} · ${esc(f.context.source)}</div></div>
           <a class="btn btn-sm btn-primary" href="${esc(addUrl)}" target="_blank" rel="noopener">Add</a></div></article>`).join("")}</div>
           <p class="note">${icon("info")}<span>“Add” opens Home Assistant, where the new device is waiting under Discovered. Confirm it there; it then appears here under Recently added.</span></p>`
-        : '<p class="empty">Nothing waiting. New devices from the Hue and eWeLink apps are added automatically.</p>'}
+        : '<p class="empty">Nothing waiting. Hue and Sonos devices appear by themselves; for Ring, Tuya, Alexa or Sonoff devices tap Scan for devices.</p>'}
       <h2 class="section">Recently added · last 14 days</h2>
       ${recent.length ? `<div class="grid g-2">${recent.map(d => `<article class="card">
           <div class="card-head"><span class="ico">${icon(/hue|signify|philips/i.test(d.manufacturer || "") ? "bulb" : /sonos/i.test(d.manufacturer || "") ? "music" : "sensor")}</span>
