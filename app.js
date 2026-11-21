@@ -1496,11 +1496,24 @@
     });
   }
   // Ring Protect: the latest recorded clip, played straight from Ring's storage.
+  // 21 Nov: Ring's link is only valid for 15 minutes (Home Assistant renews it every ~3) and some phones won't play it inside
+  // the page. So: newest link at the moment of the tap, start muted (needed for autoplay on iPhone), and if it can't play
+  // here, say so and offer to open it in the phone's own video player.
   function clipView(id) {
     const s = st(id), url = s && s.attributes.video_url;
-    if (!url) return;
-    sheet(`<h2>${esc(camName(s))} · last recording</h2><div class="cam-view"><video src="${esc(url)}" autoplay playsinline controls></video></div>
-      <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Close</button></div>`, true);
+    if (!url) { toast("Ring hasn't got a recording for this camera yet."); return; }
+    sheet(`<h2>${esc(camName(s))} · last recording</h2>
+      <div class="cam-view"><video id="clip-video" src="${esc(url)}" autoplay muted playsinline controls preload="auto"></video></div>
+      <p class="row-sub" id="clip-msg">Loading the newest Ring recording… tap the speaker icon on the video for sound.</p>
+      <div class="acts"><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Open the recording</a><button class="btn" data-action="close">Close</button></div>`, true);
+    const v = $("#clip-video"), msg = $("#clip-msg");
+    if (!v) return;
+    const ok = () => { if (msg) msg.textContent = "Newest Ring recording. Tap the speaker icon for sound."; };
+    v.addEventListener("loadeddata", ok, { once: true });
+    v.addEventListener("playing", ok, { once: true });
+    v.addEventListener("error", () => { if (msg) msg.innerHTML = "This recording won't play inside the app. Tap <b>Open the recording</b> to watch it in your phone's video player."; }, { once: true });
+    setTimeout(() => { if (v.readyState < 2 && msg && !/won't play/.test(msg.textContent)) msg.innerHTML = "Still loading… if nothing appears, tap <b>Open the recording</b>."; }, 8000);
+    const p = v.play(); if (p && p.catch) p.catch(() => { /* autoplay refused: the controls still work */ });
   }
   // ---------- Checks (14 Nov): batteries and offline devices — sensors, cameras, alarm, lights. Pool, jacuzzi, water
   // heater, TVs and Alexa extras are left out (they are often switched off on purpose).
