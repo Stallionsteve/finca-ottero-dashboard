@@ -2156,7 +2156,7 @@
   // ---------- UI sounds (21 Nov) ----------
   // Original sounds made by the app itself (Web Audio, no files, nothing downloaded): a faint "tick" for buttons and a
   // short rising "power-up" chirp for the Jarvis button. Very quiet; switch off in More → Extras (or Checks on the tablet).
-  const sfx = { ctx: null, on: (() => { try { return localStorage.getItem("finca.sfx") !== "off"; } catch { return true; } })() };
+  const sfx = { ctx: null, on: (() => { try { return localStorage.getItem("finca.sfx") === "on"; } catch { return false; } })() };   // 21 Nov: off by default (owner will supply his own sound)
   function sfxCtx() {
     if (!sfx.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { sfx.ctx = new C(); } catch { return null; } }
     if (sfx.ctx.state === "suspended") sfx.ctx.resume().catch(() => {});
