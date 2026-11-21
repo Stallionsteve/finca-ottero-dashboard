@@ -399,8 +399,75 @@
         <div class="wx-w"><svg class="wxsvg wx-wind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h11a3 3 0 1 0-3-3M3 13h15a3 3 0 1 1-3 3M3 17h7"/></svg> ${d.wind_speed !== undefined ? Math.round(d.wind_speed) : "—"}<small>${compass(d.wind_bearing) || "&nbsp;"}</small></div>
         ${(d.precipitation_probability || 0) >= 20 ? `<div class="wx-r"><svg class="wxsvg wx-rain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.6 6 10.5a6 6 0 0 1-12 0c0-3.9 6-10.5 6-10.5z"/></svg> ${Math.round(d.precipitation_probability)}%</div>` : (d.precipitation || 0) >= 0.3 ? `<div class="wx-r"><svg class="wxsvg wx-rain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.6 6 10.5a6 6 0 0 1-12 0c0-3.9 6-10.5 6-10.5z"/></svg> ${(+d.precipitation).toFixed(1)} mm</div>` : ""}
       </div>`).join("")}</div>
+      ${inSheet ? windCard() : ""}
       ${inSheet ? '<div class="acts"><button class="btn" data-action="close">Close</button></div>' : ""}
     </article>`;
+  }
+  // ---- 21 Nov: Tarifa wind (Los Lances + Valdevaqueros) for kite, kite foil, wing foil and windsurf ----
+  // Hourly model forecast from Open-Meteo (free, no key), fetched by Home Assistant every 3 h into /local/finca-ottero/wind/.
+  // Daylight hours only (10:00–19:00). Knots. A guide, not a spot report.
+  const wind = { at: 0, spots: null, busy: false };
+  async function loadWind() {
+    if (wind.busy || Date.now() - wind.at < 20 * 60000) return;
+    wind.busy = true;
+    try {
+      let data;
+      if (store.mode === "demo") {
+        const t = [], sp = [], gu = [], di = []; const start = new Date(); start.setHours(0, 0, 0, 0);
+        for (let h = 0; h < 144; h++) { const d = new Date(start.getTime() + h * 36e5); t.push(d.toISOString().slice(0, 16)); const day = Math.floor(h / 24), hr = h % 24;
+          const base = [8, 22, 27, 14, 31, 18][day]; const k = Math.max(0, base * (0.6 + 0.4 * Math.sin((hr - 6) / 24 * Math.PI * 2 - 1.2) + 0.15));
+          sp.push(+k.toFixed(1)); gu.push(+(k * 1.35).toFixed(1)); di.push(day % 2 ? 95 : 265); }
+        data = [{ hourly: { time: t, wind_speed_10m: sp, wind_gusts_10m: gu, wind_direction_10m: di } }, { hourly: { time: t, wind_speed_10m: sp.map(x => x * 1.1), wind_gusts_10m: gu, wind_direction_10m: di } }];
+      } else {
+        const r = await fetch("/local/finca-ottero/wind/tarifa.json?t=" + Date.now(), { cache: "no-store" });
+        data = r.ok ? await r.json() : null;
+      }
+      if (Array.isArray(data) && data.length) {
+        wind.spots = data.map((loc, i) => ({ name: i === 0 ? "Los Lances" : "Valdevaqueros", h: loc.hourly }));
+        wind.when = data[0] && data[0].hourly && data[0].hourly.time ? data[0].hourly.time[0] : "";
+      }
+      wind.at = Date.now();
+      const open = document.querySelector("#layer .sheet"); if (open && wx.sheet) open.innerHTML = weatherCard(true);
+    } catch { wind.at = Date.now() - 15 * 60000; } finally { wind.busy = false; }
+  }
+  const levOrPon = deg => { const d = ((deg % 360) + 360) % 360; return d >= 45 && d <= 135 ? "Levante" : d >= 225 && d <= 315 ? "Poniente" : compass(d); };
+  // one spot, one day → daylight summary + verdicts
+  function windDay(spot, ymd) {
+    const H = spot.h, hrs = [];
+    H.time.forEach((t, i) => { if (t.slice(0, 10) === ymd) { const hr = +t.slice(11, 13); if (hr >= 10 && hr <= 19) hrs.push({ hr, k: H.wind_speed_10m[i], g: H.wind_gusts_10m[i], d: H.wind_direction_10m[i] }); } });
+    if (!hrs.length) return null;
+    const avg = hrs.reduce((a, x) => a + x.k, 0) / hrs.length, max = Math.max(...hrs.map(x => x.k)), gust = Math.max(...hrs.map(x => x.g));
+    const dirs = hrs.map(x => levOrPon(x.d)), dir = dirs.sort((a, b) => dirs.filter(v => v === a).length - dirs.filter(v => v === b).length).pop();
+    const within = (lo, hi) => hrs.filter(x => x.k >= lo && x.k <= hi);
+    // too strong wins over everything: 2+ hours above the top of the range, or gusts more than ~12 kn above it
+    const sport = (lo, good, hi) => { const w = within(lo, hi); const g = within(good, hi);
+      const tooStrong = hrs.filter(x => x.k > hi).length >= 2 || gust > hi + 12;
+      const win = w.length ? `${pad(w[0].hr)}:00–${pad(w[w.length - 1].hr + 1)}:00` : "";
+      return tooStrong ? { v: "strong", win: "" } : g.length >= 3 ? { v: "yes", win } : w.length >= 3 ? { v: "maybe", win } : { v: "no", win: "" }; };
+    return { avg, max, gust, dir, kite: sport(15, 18, 35), foil: sport(10, 13, 30), wing: sport(13, 16, 30), windsurf: sport(15, 18, 40) };
+  }
+  function windCard() {
+    loadWind();
+    if (!wind.spots) return store.mode === "demo" ? "" : '<p class="row-sub" style="margin-top:14px">Tarifa wind: loading…</p>';
+    const ll = wind.spots[0], vv = wind.spots[1];
+    const days = [...new Set(ll.h.time.map(t => t.slice(0, 10)))].slice(0, 5);
+    const chip = (label, x) => `<span class="wind-chip ${x.v}" title="${x.win ? "about " + x.win : ""}">${label}${x.v === "yes" ? " ✓" : x.v === "maybe" ? " ~" : x.v === "strong" ? " !" : ""}</span>`;
+    const rows = days.map((ymd, i) => { const d = windDay(ll, ymd); if (!d) return ""; const v = vv ? windDay(vv, ymd) : null;
+      const label = i === 0 ? "Today" : new Date(ymd + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
+      const best = d.kite.win || d.wing.win || d.foil.win;
+      return `<div class="wind-row"><div class="wind-d">${label}</div>
+        <div class="wind-main"><b>${d.dir} ${Math.round(d.avg)}–${Math.round(d.max)} kn</b> <span class="row-sub">gusts ${Math.round(d.gust)}${best ? ` · best ${best}` : ""}${v ? ` · Valdevaqueros ${Math.round(v.max)} kn` : ""}</span>
+        <div class="wind-chips">${chip("Kite", d.kite)}${chip("Kite foil", d.foil)}${chip("Wing", d.wing)}${chip("Windsurf", d.windsurf)}</div></div></div>`; }).join("");
+    const today = windDay(ll, days[0]) || {};
+    const verdict = today.kite && today.kite.v === "strong" ? `Very strong at Los Lances today (gusts ${Math.round(today.gust)} knots). Experts only, if at all.`
+      : today.kite && today.kite.v === "yes" ? `Kite day at Los Lances today, ${today.dir}${today.kite.win ? ", about " + today.kite.win : ""}.`
+      : today.foil && (today.foil.v === "yes" || today.foil.v === "maybe") ? "Foil weather today at Los Lances; light for a big kite."
+      : "Not much wind at Los Lances today.";
+    return `<div class="wind-box">
+      <div class="card-head" style="margin-top:16px"><span class="ico">${WX_ICON.windy}</span><div class="grow"><h3>Tarifa wind</h3><div class="row-sub">${esc(verdict)}</div></div></div>
+      ${rows}
+      <p class="note" style="margin-top:8px">${icon("info")}<span>Los Lances, 10:00–19:00, knots. ✓ good · ~ possible · ! too strong. Levante (east) is gusty and side-offshore at Los Lances; Poniente (west) is steadier. Model forecast from Open-Meteo: check the beach before you go.</span></p>
+    </div>`;
   }
   function solarForecastCard() {
     const today = st("sensor.energy_production_today"), tom = st("sensor.energy_production_tomorrow"), peak = st("sensor.power_highest_peak_time_today");
@@ -2250,10 +2317,15 @@
       const d = (ev && ev.data) || {}, page = d.page;
       if (!page || !VIEWS[page]) return;
       const asked = Date.now() - (J.askedAt || 0) < 30000;
-      const wall = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) && d.device_id;
-      if (!asked && !wall) return;
+      const wall = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) && !!d.device_id;
+      const go = asked || wall;
+      // tell Home Assistant what happened (shown in the logbook as "Finca app"), so a missed page switch can be traced
+      if (asked || wall) conn.sendMessagePromise({ type: "fire_event", event_type: "finca_show_page_ack",
+        event_data: { page, switched: go, asked, wall, build: String(window.FINCA_VERSION || ""), from: location.hash || "#home" } }).catch(() => {});
+      if (!go) return;
       closeMore && closeMore();
       if (location.hash !== "#" + page) location.hash = "#" + page;
+      else render(true);
     }, { type: "subscribe_events", event_type: "finca_show_page" }).catch(() => {});
     H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }

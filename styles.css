@@ -961,3 +961,14 @@ svg[aria-hidden="true"] { overflow: visible; }
    Sliders (and the music cards around them) never select text or show that menu. */
 input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .media-ctl, .np-ctl, .bri { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* 21 Nov: Tarifa wind in the 5-day forecast */
+.wind-box { border-top: 1px solid var(--line); margin-top: 14px; }
+.wind-row { display: grid; grid-template-columns: 48px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.wind-d { font-weight: 700; color: var(--sand); padding-top: 2px; }
+.wind-main b { font-family: var(--font-data); font-weight: 500; }
+.wind-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.wind-chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.wind-chip.yes { color: #3ee6a0; border-color: color-mix(in srgb, #3ee6a0 55%, transparent); background: color-mix(in srgb, #3ee6a0 10%, transparent); }
+.wind-chip.maybe { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.wind-chip.strong { color: #ff6b7a; border-color: color-mix(in srgb, #ff6b7a 55%, transparent); }
