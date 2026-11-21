@@ -7,3 +7,6 @@
 .pi-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .pi-row b { font-family: var(--font-data); font-weight: 500; font-size: 17px; }
 .pi-up { color: #3ee6a0; } .pi-down { color: #ff6b7a; }
+/* 21 Nov: on the other pages a grid gap sits under each heading; here the next card overlapped the heading's letters. */
+#pi-root h2.section { margin: 24px 0 12px; line-height: 1.4; }
+#pi-root .card + .card { margin-top: 14px; }
