@@ -1707,6 +1707,7 @@
     }
   }
   function runPipeline(msg, handlers) {
+    J.askedAt = Date.now();   // 21 Nov: lets "show me security" switch pages only on the device that asked
     return new Promise((resolve) => {
       let unsub = null, done = false;
       const finish = () => { if (done) return; done = true; if (unsub) unsub(); resolve(); };
@@ -2243,6 +2244,17 @@
     ents.forEach(e => { store.ents[e.entity_id] = e; });
     try { const p = await conn.sendMessagePromise({ type: "assist_pipeline/pipeline/list" }); store.pipelines = p.pipelines; store.preferredPipeline = p.preferred_pipeline; } catch { /* Assist not set up */ }
     let booted = false;
+    // 21 Nov: "Jarvis, show me security / climate / …" → Home Assistant fires finca_show_page. Jump there only if this device
+    // asked in the last 30 s, or this is the wall tablet and the question came through its "Hey Jarvis" (a voice device).
+    conn.subscribeMessage(ev => {
+      const d = (ev && ev.data) || {}, page = d.page;
+      if (!page || !VIEWS[page]) return;
+      const asked = Date.now() - (J.askedAt || 0) < 30000;
+      const wall = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) && d.device_id;
+      if (!asked && !wall) return;
+      closeMore && closeMore();
+      if (location.hash !== "#" + page) location.hash = "#" + page;
+    }, { type: "subscribe_events", event_type: "finca_show_page" }).catch(() => {});
     H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }
 
