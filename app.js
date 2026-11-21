@@ -1595,7 +1595,8 @@
     const h = healthData();
     const row = (title, sub, pill, warn) => `<div class="row"><div class="row-body"><div class="row-title">${esc(title)}</div><div class="row-sub">${sub}</div></div><span class="pill ${warn ? "warn" : "ok"}">${pill}</span></div>`;
     return `<section class="view">
-      <div class="page-head"><div><h1>Checks</h1><p>${h.low.length} low batter${h.low.length === 1 ? "y" : "ies"} · ${h.offline.length} offline</p></div></div>
+      <div class="page-head"><div><h1>Checks</h1><p>${h.low.length} low batter${h.low.length === 1 ? "y" : "ies"} · ${h.offline.length} offline</p></div>
+        <button class="btn btn-sm" data-action="sfx-toggle">${icon("music")}<span data-sfx-label>${sfx.on ? "Sounds on" : "Sounds off"}</span></button></div>
       <div class="grid g-2">
         <article class="card"><div class="card-head"><span class="ico">${icon("battery")}</span><div class="grow"><h3>Low batteries</h3><div class="row-sub">25 % or less</div></div></div>
           ${h.low.length ? h.low.map(b => row(b.name, esc(b.area || ""), `${Math.round(b.v)}%`, true)).join("") : '<p class="note">All batteries are fine.</p>'}</article>
@@ -1624,7 +1625,8 @@
     p.innerHTML = `<div class="more-grid">${NAV.filter(n => n.rail && !n.extra).map(n => `<a href="#${n.id}" data-action="close-more" ${n.id === cur ? 'aria-current="page"' : ""}>${icon(n.icon)}<span>${n.label}</span></a>`).join("")}
         <a href="#more" data-action="share-app">${icon("share")}<span>Share app</span></a></div>
       <div class="more-extras"><span>Extras</span></div>
-      <div class="more-grid"><a href="#portfolio" data-action="close-more" ${cur === "portfolio" ? 'aria-current="page"' : ""}>${icon("chart")}<span>Portfolio</span></a></div>`;
+      <div class="more-grid"><a href="#portfolio" data-action="close-more" ${cur === "portfolio" ? 'aria-current="page"' : ""}>${icon("chart")}<span>Portfolio</span></a>
+        <a href="#more" data-action="sfx-toggle">${icon("music")}<span data-sfx-label>${sfx.on ? "Sounds on" : "Sounds off"}</span></a></div>`;
     requestAnimationFrame(() => p.classList.add("open")); document.body.classList.add("more-open");
     const ml = document.querySelector(".more-link"); if (ml) ml.setAttribute("aria-expanded", "true");
   }
@@ -2007,6 +2009,7 @@
     }
     else if (a === "more") { ev.preventDefault(); moreSheet(); }
     else if (a === "share-app") { ev.preventDefault(); shareApp(); }
+    else if (a === "sfx-toggle") { ev.preventDefault(); sfxToggle(); }
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
     else if (a === "close-nav") closeLayer();
@@ -2150,9 +2153,47 @@
   <circle class="spark" cx="40" cy="38" r="14" fill="#7fdcff" opacity=".18"/>
   <text x="50" y="54.5" text-anchor="middle" class="jlabel">JARVIS</text>
 </svg>`; }
+  // ---------- UI sounds (21 Nov) ----------
+  // Original sounds made by the app itself (Web Audio, no files, nothing downloaded): a faint "tick" for buttons and a
+  // short rising "power-up" chirp for the Jarvis button. Very quiet; switch off in More → Extras (or Checks on the tablet).
+  const sfx = { ctx: null, on: (() => { try { return localStorage.getItem("finca.sfx") !== "off"; } catch { return true; } })() };
+  function sfxCtx() {
+    if (!sfx.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { sfx.ctx = new C(); } catch { return null; } }
+    if (sfx.ctx.state === "suspended") sfx.ctx.resume().catch(() => {});
+    return sfx.ctx;
+  }
+  function sfxTone(c, t0, f0, f1, dur, vol, type) {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || "sine"; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.03);
+  }
+  function sfxTick() {
+    if (!sfx.on) return; const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
+    sfxTone(c, t, 2600, 1900, 0.03, 0.03); sfxTone(c, t + 0.012, 5200, 4200, 0.02, 0.008);
+  }
+  function sfxJarvis() {
+    if (!sfx.on) return; const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
+    sfxTone(c, t, 420, 880, 0.2, 0.045, "triangle");          // soft rising sweep
+    sfxTone(c, t + 0.06, 1320, 1980, 0.16, 0.022);              // shimmer
+    sfxTone(c, t + 0.13, 2640, 3520, 0.12, 0.014);              // sparkle on top
+    sfxTone(c, t + 0.2, 1760, 1760, 0.09, 0.012);                // settle
+  }
+  function sfxToggle() {
+    sfx.on = !sfx.on; try { localStorage.setItem("finca.sfx", sfx.on ? "on" : "off"); } catch { /* storage unavailable */ }
+    if (sfx.on) sfxJarvis(); toast(sfx.on ? "Button sounds on" : "Button sounds off");
+    document.querySelectorAll("[data-sfx-label]").forEach(el => { el.textContent = sfx.on ? "Sounds on" : "Sounds off"; });
+  }
+  // Every button / tile / link tap: the faint tick. The Jarvis button gets its own chirp (below). Sliders stay silent.
+  document.addEventListener("pointerdown", ev => {
+    const t = ev.target.closest && ev.target.closest("button, a[href], [data-action], [data-toggle], [data-media], [data-clip], [data-live], .tile, select");
+    if (!t || t.id === "jarvis-fab" || t.closest("#jarvis-fab") || ev.target.closest("input[type=range]")) return;
+    sfxTick();
+  }, { capture: true, passive: true });
+
   // Tap = voice HUD; press and hold (0.6 s) = typing window with "Reply through".
   { const fab = $("#jarvis-fab"); let holdT = 0, held = false;
-    fab.addEventListener("pointerdown", () => { held = false; holdT = setTimeout(() => { held = true; primeAudio(); openJarvis(); }, 600); });
+    fab.addEventListener("pointerdown", () => { held = false; sfxJarvis(); holdT = setTimeout(() => { held = true; primeAudio(); openJarvis(); }, 600); });
     ["pointerup", "pointerleave", "pointercancel"].forEach(t => fab.addEventListener(t, () => clearTimeout(holdT)));
     fab.addEventListener("contextmenu", ev => ev.preventDefault());
     fab.addEventListener("click", ev => { if (held) { ev.preventDefault(); return; } voiceTap(); }); }
