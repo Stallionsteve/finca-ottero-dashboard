@@ -456,7 +456,7 @@
       const label = i === 0 ? "Today" : new Date(ymd + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
       const best = d.kite.win || d.wing.win || d.foil.win;
       return `<div class="wind-row"><div class="wind-d">${label}</div>
-        <div class="wind-main"><b>${d.dir} ${Math.round(d.avg)}–${Math.round(d.max)} kn</b> <span class="row-sub">gusts ${Math.round(d.gust)}${best ? ` · best ${best}` : ""}${v ? ` · Valdevaqueros ${Math.round(v.max)} kn` : ""}</span>
+        <div class="wind-main"><b>${d.dir} ${Math.round(d.avg)}–${Math.round(d.max)} kn</b> <span class="row-sub">gusts ${Math.round(d.gust)}${best ? ` · best ${best}` : ""}${v && Math.abs(v.max - d.max) >= 1 ? ` · Valdevaqueros ${Math.round(v.max)} kn` : ""}</span>
         <div class="wind-chips">${chip("Kite", d.kite)}${chip("Kite foil", d.foil)}${chip("Wing", d.wing)}${chip("Windsurf", d.windsurf)}</div></div></div>`; }).join("");
     const today = windDay(ll, days[0]) || {};
     const verdict = today.kite && today.kite.v === "strong" ? `Very strong at Los Lances today (gusts ${Math.round(today.gust)} knots). Experts only, if at all.`
