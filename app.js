@@ -409,7 +409,7 @@
   // when they're good on at least one day. "faces" = roughly which way the beach looks out to sea (degrees): a wind
   // blowing from the land (within ~45° of the opposite direction) is offshore → warning, never a tick. Approximate.
   const WIND_SPOTS = [
-    { name: "Los Lances", area: "Tarifa", faces: 200, keep: true },
+    { name: "Los Lances", area: "Tarifa", faces: 200, keep: true, rescue: true },   // rescue boats: offshore is OK here (owner, 22 Nov)
     { name: "Palmones", area: "Algeciras bay", faces: 150, keep: true },
     { name: "Torreguadiaro", area: "Sotogrande", faces: 120, keep: true },
     { name: "Guadalmansa", area: "Estepona", faces: 160, keep: true },
@@ -455,14 +455,19 @@
     const avg = hrs.reduce((a, x) => a + x.k, 0) / hrs.length, max = Math.max(...hrs.map(x => x.k)), gust = Math.max(...hrs.map(x => x.g));
     const dirs = hrs.map(x => levOrPon(x.d)), dir = [...dirs].sort((a, b) => dirs.filter(v => v === a).length - dirs.filter(v => v === b).length).pop();
     const offshoreHr = x => angDiff(x.d, (spot.faces + 180) % 360) < 45;   // 22 Nov: ±45° (±60° wrongly called Tarifa's Levante offshore)
-    const sport = (lo, good, hi) => {
+    const onshoreHr = x => angDiff(x.d, spot.faces) < 25;                    // blowing straight in: launching a kite is hard
+    // Owner, 22 Nov: offshore is fine where there are rescue boats (Los Lances). Elsewhere offshore is dangerous for kite
+    // surfing (red), a caution for wing foiling and windsurfing (amber). Straight onshore makes kiting tricky (amber).
+    const sport = (lo, good, hi, kind) => {
       const w = hrs.filter(x => x.k >= lo && x.k <= hi), g = hrs.filter(x => x.k >= good && x.k <= hi);
       const win = w.length ? `${pad(w[0].hr)}:00–${pad(w[w.length - 1].hr + 1)}:00` : "";
       if (hrs.filter(x => x.k > hi).length >= 2 || gust > hi + 12) return { v: "strong", win: "" };
-      if (w.length >= 3 && w.filter(offshoreHr).length > w.length / 2) return { v: "offshore", win };
+      const off = w.length >= 3 && w.filter(offshoreHr).length > w.length / 2, on = w.length >= 3 && w.filter(onshoreHr).length > w.length / 2;
+      if (off && !spot.rescue) return kind === "kite" ? { v: "offshore", win } : { v: "maybe", win, note: "offshore" };
+      if (on && kind === "kite" && g.length >= 3) return { v: "maybe", win, note: "onshore" };
       return g.length >= 3 ? { v: "yes", win } : w.length >= 3 ? { v: "maybe", win } : { v: "no", win: "" };
     };
-    return { avg, max, gust, dir, kite: sport(15, 18, 35), wing: sport(13, 16, 30), windsurf: sport(15, 18, 40) };
+    return { avg, max, gust, dir, kite: sport(15, 18, 35, "kite"), wing: sport(13, 16, 30, "wing"), windsurf: sport(15, 18, 40, "windsurf") };   // kite surf, wing foil, windsurf
   }
   const MARK = { yes: " ✓", maybe: " ~", strong: " !", offshore: " offshore", no: "" };
   // Waves (22 Nov, owner): flat · small · ! a couple of feet · ! 1 m+ said clearly · red ! 2 m+ · skull 3 m+ (be careful).
@@ -485,7 +490,7 @@
     const ll = wind.spots[0];
     const days = [...new Set(ll.h.time.map(t => t.slice(0, 10)))].slice(0, 5);
     const dayName = (ymd, i) => i === 0 ? "Today" : new Date(ymd + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
-    const chip = (label, x) => `<span class="wind-chip ${x.v}" title="${x.win ? "about " + x.win : ""}">${label}${MARK[x.v]}</span>`;
+    const chip = (label, x) => `<span class="wind-chip ${x.v}" title="${x.win ? "about " + x.win : ""}">${label}${MARK[x.v]}${x.note ? " " + x.note : ""}</span>`;
     // Los Lances in detail
     const rows = days.map((ymd, i) => { const d = windDay(ll, ymd); if (!d) return "";
       const best = d.kite.win || d.wing.win || d.windsurf.win;
@@ -516,7 +521,7 @@
       <h3 style="margin:18px 0 6px">Along the coast</h3>
       <p class="row-sub" style="margin:0 0 6px">Málaga to Cádiz · strongest wind in knots · K kite surf, W wing foil, S windsurf · off = offshore · ! too strong · waves shown from 2–3 ft (red from 2 m, skull from 3 m)</p>
       ${table}
-      <p class="note" style="margin-top:8px">${icon("info")}<span>10:00–19:00, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Levante (east) is offshore on the Cádiz side, Poniente (west) can be offshore on parts of the Costa del Sol. Waves are the open-sea forecast just offshore; on the beach they're usually a little smaller. Model forecasts from Open-Meteo: check the beach before you go.</span></p>
+      <p class="note" style="margin-top:8px">${icon("info")}<span>10:00–19:00, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Offshore is only flagged where there are no rescue boats (red for kite surf, amber for wing and windsurf); Los Lances has rescue boats. Straight onshore makes kiting tricky (~). Waves are the open-sea forecast just offshore; on the beach they're usually a little smaller. Model forecasts from Open-Meteo: check the beach before you go.</span></p>
     </div>`;
   }
   function solarForecastCard() {
