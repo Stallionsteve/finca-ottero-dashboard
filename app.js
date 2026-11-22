@@ -1829,12 +1829,32 @@
       if (asks && reply !== "none") setTimeout(() => hud.on && hud.followUp(), ms); else hud.close(reply === "none" ? 5000 : ms);
     }
   }
+  // 22 Nov: logins that aren't administrators can't hear Home Assistant's "show this page" signal, so the app works
+  // the page out from the question itself (same topics as Jarvis's page answers). Used only when the signal isn't available.
+  const PAGE_WORDS = [
+    [/\b(wind|windy|waves?|swell|kite|kiting|wing|winging|windsurf|surf)\b/, "home", "weather"],
+    [/\b(security|cameras?|alarm|doorbell|front door|back door|outside|safe|secure|movement|anyone at the door)\b/, "security"],
+    [/\b(gate|driveway)\b/, "gates"], [/\b(climate|heating|air con|aircon|air conditioning|temperatures?)\b/, "climate"],
+    [/\b(energy|solar|batter(y|ies)|grid|power)\b/, "energy"], [/\b(lights?|lighting)\b/, "lighting"],
+    [/\b(what's playing|what is playing|speakers|this song)\b/, "media"], [/\b(pool|jacuzzi)\b/, "pool"],
+    [/\b(portfolio|investments?|stocks?|shares)\b/, "portfolio"], [/\b(where is everyone|where's everyone|who's home|who is home|map)\b/, "otters"],
+    [/\b(problems|issues|low batter|checks|maintenance)\b/, "health"]];
+  function pageFromQuestion(text) {
+    const t = String(text || "").toLowerCase(); if (!t || J.pageSub !== false) return;
+    if (!/\b(show|open|how's|how is|what's|what is|is it|is the|are the|are we|any|where|can we|can i|did|check|which)\b/.test(t)) return;
+    const hit = PAGE_WORDS.find(([re]) => re.test(t)); if (!hit) return;
+    const [, page, sh] = hit; if (!VIEWS[page]) return;
+    if (location.hash !== "#" + page) location.hash = "#" + page;
+    if (sh === "weather") setTimeout(() => { wx.sheet = true; sheet(weatherCard(true) || '<p>Loading the forecast…</p>', true); }, 350);
+  }
   function runPipeline(msg, handlers) {
     J.askedAt = Date.now();   // 21 Nov: lets "show me security" switch pages only on the device that asked
+    let asked = (msg && msg.input && msg.input.text) || "";
     return new Promise((resolve) => {
       let unsub = null, done = false;
-      const finish = () => { if (done) return; done = true; if (unsub) unsub(); resolve(); };
+      const finish = () => { if (done) return; done = true; if (unsub) unsub(); resolve(); setTimeout(() => pageFromQuestion(asked), 200); };
       store.conn.subscribeMessage(ev => {
+        if (ev.type === "stt-end" && ev.data && ev.data.stt_output) asked = ev.data.stt_output.text || asked;
         handlers(ev);
         if (ev.type === "run-end" || ev.type === "error") finish();
       }, msg).then(u => { unsub = u; if (done) u(); }).catch(e => { addMsg("sys", `Jarvis isn't available: ${e.message || e.code}`); finish(); });
@@ -2383,7 +2403,7 @@
       if (location.hash !== "#" + page) location.hash = "#" + page;
       else render(true);
       if (d.sheet === "weather") setTimeout(() => { wx.sheet = true; sheet(weatherCard(true) || '<p>Loading the forecast…</p>', true); }, 350);
-    }, { type: "subscribe_events", event_type: "finca_show_page" }).catch(() => {});
+    }, { type: "subscribe_events", event_type: "finca_show_page" }).then(() => { J.pageSub = true; }).catch(() => { J.pageSub = false; });
     H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }
 
