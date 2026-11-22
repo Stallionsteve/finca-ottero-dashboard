@@ -407,9 +407,9 @@
   // Model forecast from Open-Meteo (free, no key), fetched by Home Assistant every 3 h into /local/finca-ottero/wind/coast.json.
   // Los Lances in detail; the coast from Málaga to Cádiz as a compact table. "keep" beaches always show; the others only
   // when they're good on at least one day. "faces" = roughly which way the beach looks out to sea (degrees): a wind
-  // blowing from the land (within ~60° of the opposite direction) is offshore → warning, never a tick. Approximate.
+  // blowing from the land (within ~45° of the opposite direction) is offshore → warning, never a tick. Approximate.
   const WIND_SPOTS = [
-    { name: "Los Lances", area: "Tarifa", faces: 210, keep: true },
+    { name: "Los Lances", area: "Tarifa", faces: 200, keep: true },
     { name: "Palmones", area: "Algeciras bay", faces: 150, keep: true },
     { name: "Torreguadiaro", area: "Sotogrande", faces: 120, keep: true },
     { name: "Guadalmansa", area: "Estepona", faces: 160, keep: true },
@@ -436,7 +436,11 @@
         const r = await fetch("/local/finca-ottero/wind/coast.json?t=" + Date.now(), { cache: "no-store" });
         data = r.ok ? await r.json() : null;
       }
-      if (Array.isArray(data) && data.length) wind.spots = data.slice(0, WIND_SPOTS.length).map((loc, i) => ({ ...WIND_SPOTS[i], h: loc.hourly }));
+      let wv = null;
+      if (store.mode === "demo") wv = WIND_SPOTS.map((sp, n) => { const t = [], h = []; const st = new Date(); for (let d = 0; d < 6; d++) { t.push(new Date(st.getTime() + d * 864e5).toISOString().slice(0, 10)); h.push([0.2, 0.5, 0.8, 1.4, 2.3, 3.2][(d + n) % 6]); } return { daily: { time: t, wave_height_max: h } }; });
+      else { try { const r2 = await fetch("/local/finca-ottero/wind/waves.json?t=" + Date.now(), { cache: "no-store" }); wv = r2.ok ? await r2.json() : null; } catch { wv = null; } }
+      if (Array.isArray(data) && data.length) wind.spots = data.slice(0, WIND_SPOTS.length).map((loc, i) => ({ ...WIND_SPOTS[i], h: loc.hourly,
+        waves: Array.isArray(wv) && wv[i] && wv[i].daily ? Object.fromEntries(wv[i].daily.time.map((t, j) => [t, wv[i].daily.wave_height_max[j]])) : {} }));
       wind.at = Date.now();
       const open = document.querySelector("#layer .sheet"); if (open && wx.sheet) open.innerHTML = weatherCard(true);
     } catch { wind.at = Date.now() - 15 * 60000; } finally { wind.busy = false; }
@@ -450,7 +454,7 @@
     if (!hrs.length) return null;
     const avg = hrs.reduce((a, x) => a + x.k, 0) / hrs.length, max = Math.max(...hrs.map(x => x.k)), gust = Math.max(...hrs.map(x => x.g));
     const dirs = hrs.map(x => levOrPon(x.d)), dir = [...dirs].sort((a, b) => dirs.filter(v => v === a).length - dirs.filter(v => v === b).length).pop();
-    const offshoreHr = x => angDiff(x.d, (spot.faces + 180) % 360) < 60;
+    const offshoreHr = x => angDiff(x.d, (spot.faces + 180) % 360) < 45;   // 22 Nov: ±45° (±60° wrongly called Tarifa's Levante offshore)
     const sport = (lo, good, hi) => {
       const w = hrs.filter(x => x.k >= lo && x.k <= hi), g = hrs.filter(x => x.k >= good && x.k <= hi);
       const win = w.length ? `${pad(w[0].hr)}:00–${pad(w[w.length - 1].hr + 1)}:00` : "";
@@ -461,6 +465,20 @@
     return { avg, max, gust, dir, kite: sport(15, 18, 35), wing: sport(13, 16, 30), windsurf: sport(15, 18, 40) };
   }
   const MARK = { yes: " ✓", maybe: " ~", strong: " !", offshore: " offshore", no: "" };
+  // Waves (22 Nov, owner): flat · small · ! a couple of feet · ! 1 m+ said clearly · red ! 2 m+ · skull 3 m+ (be careful).
+  const WAVE_SVG = '<svg class="wsym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 15c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3"/><path d="M2 19c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3" opacity=".55"/></svg>';
+  const WARN_SVG = '<svg class="wsym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 22 20.5H2z"/><path d="M12 10v4.5M12 17.4v.2" stroke-linecap="round"/></svg>';
+  const SKULL_SVG = '<svg class="wsym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a7.5 7.5 0 0 0-7.5 7.5c0 2.6 1.3 4.4 3 5.4V19h9v-3.1c1.7-1 3-2.8 3-5.4A7.5 7.5 0 0 0 12 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M12 13.6v1.6M10 19v2M14 19v2"/></svg>';
+  function waveLevel(w) {
+    if (w === undefined || w === null || isNaN(w)) return null;
+    const m = (Math.round(w * 10) / 10).toFixed(1);
+    if (w < 0.3) return { cls: "flat", short: "flat", text: "Flat", sym: WAVE_SVG };
+    if (w < 0.6) return { cls: "small", short: "small", text: "Small waves", sym: WAVE_SVG };
+    if (w < 1.0) return { cls: "warn", short: "2–3ft", text: "Waves 2–3 ft", sym: WARN_SVG };
+    if (w < 2.0) return { cls: "warn big", short: m + "m", text: `Waves ${m} m, take care`, sym: WARN_SVG };
+    if (w < 3.0) return { cls: "danger", short: m + "m", text: `Big waves ${m} m`, sym: WARN_SVG };
+    return { cls: "danger", short: m + "m", text: `${m} m waves, be careful`, sym: SKULL_SVG };
+  }
   function windCard() {
     loadWind();
     if (!wind.spots) return store.mode === "demo" ? "" : '<p class="row-sub" style="margin-top:14px">Wind: loading…</p>';
@@ -473,31 +491,32 @@
       const best = d.kite.win || d.wing.win || d.windsurf.win;
       return `<div class="wind-row"><div class="wind-d">${dayName(ymd, i)}</div>
         <div class="wind-main"><b>${d.dir} ${Math.round(d.avg)}–${Math.round(d.max)} kn</b> <span class="row-sub">gusts ${Math.round(d.gust)}${best ? ` · best ${best}` : ""}</span>
-        <div class="wind-chips">${chip("Kite surf", d.kite)}${chip("Wing foil", d.wing)}${chip("Windsurf", d.windsurf)}</div></div></div>`; }).join("");
+        <div class="wind-chips">${chip("Kite surf", d.kite)}${chip("Wing foil", d.wing)}${chip("Windsurf", d.windsurf)}${(() => { const wl = waveLevel(ll.waves && ll.waves[ymd]); return wl ? `<span class="wave-chip ${wl.cls}">${wl.sym}${esc(wl.text)}</span>` : ""; })()}</div></div></div>`; }).join("");
     const today = windDay(ll, days[0]) || {};
     const verdict = today.kite && today.kite.v === "strong" ? `Very strong at Los Lances today (gusts ${Math.round(today.gust)} knots). Experts only, if at all.`
       : today.kite && today.kite.v === "yes" ? `Kite day at Los Lances today, ${today.dir}${today.kite.win ? ", about " + today.kite.win : ""}.`
       : today.wing && (today.wing.v === "yes" || today.wing.v === "maybe") ? "Wing foil weather today at Los Lances; light for kiting."
       : "Not much wind at Los Lances today.";
     // along the coast: one cell per beach per day; letters = the sports that are good (K kite surf, W wing foil, S windsurf)
-    const cell = d => { if (!d) return '<td class="wc none">–</td>';
+    const cell = (d, w) => { if (!d) return '<td class="wc none">–</td>';
+      const wl = waveLevel(w), wtag = wl && /warn|danger/.test(wl.cls) ? `<i class="wv ${wl.cls}">${wl.sym}${esc(wl.short)}</i>` : "";
       const all = [["K", d.kite], ["W", d.wing], ["S", d.windsurf]];
       const good = all.filter(([, x]) => x.v === "yes").map(([l]) => l), maybe = all.filter(([, x]) => x.v === "maybe").map(([l]) => l);
       const warn = all.some(([, x]) => x.v === "strong") ? "strong" : all.some(([, x]) => x.v === "offshore") ? "offshore" : "";
       const cls = good.length ? "yes" : warn ? warn : maybe.length ? "maybe" : "none";
       const txt = good.length ? good.join("") : warn === "strong" ? "!" : warn === "offshore" ? "off" : maybe.length ? "~" : "";
-      return `<td class="wc ${cls}" title="${esc(d.dir)} ${Math.round(d.max)} kn, gusts ${Math.round(d.gust)}"><b>${Math.round(d.max)}</b><span>${txt}</span></td>`; };
+      return `<td class="wc ${cls}" title="${esc(d.dir)} ${Math.round(d.max)} kn, gusts ${Math.round(d.gust)}${wl ? ", " + esc(wl.text) : ""}"><b>${Math.round(d.max)}</b><span>${txt}</span>${wtag}</td>`; };
     const coast = wind.spots.slice(1).map(sp => ({ sp, ds: days.map(ymd => windDay(sp, ymd)) }))
       .filter(({ sp, ds }) => sp.keep || ds.some(d => d && [d.kite, d.wing, d.windsurf].some(x => x.v === "yes")));
     const table = `<div class="wind-coast"><table><thead><tr><th></th>${days.map((ymd, i) => `<th>${dayName(ymd, i)}</th>`).join("")}</tr></thead><tbody>
-      ${coast.map(({ sp, ds }) => `<tr><th><span>${esc(sp.name)}</span>${sp.keep ? "" : '<em>surprise</em>'}</th>${ds.map(cell).join("")}</tr>`).join("")}</tbody></table></div>`;
+      ${coast.map(({ sp, ds }) => `<tr><th><span>${esc(sp.name)}</span>${sp.keep ? "" : '<em>surprise</em>'}</th>${ds.map((d, k) => cell(d, sp.waves && sp.waves[days[k]])).join("")}</tr>`).join("")}</tbody></table></div>`;
     return `<div class="wind-box">
       <div class="card-head" style="margin-top:16px"><span class="ico">${WX_ICON.windy}</span><div class="grow"><h3>Tarifa wind</h3><div class="row-sub">${esc(verdict)}</div></div></div>
       ${rows}
       <h3 style="margin:18px 0 6px">Along the coast</h3>
-      <p class="row-sub" style="margin:0 0 6px">Málaga to Cádiz · strongest wind in knots · K kite surf, W wing foil, S windsurf · off = offshore · ! too strong</p>
+      <p class="row-sub" style="margin:0 0 6px">Málaga to Cádiz · strongest wind in knots · K kite surf, W wing foil, S windsurf · off = offshore · ! too strong · waves shown from 2–3 ft (red from 2 m, skull from 3 m)</p>
       ${table}
-      <p class="note" style="margin-top:8px">${icon("info")}<span>10:00–19:00, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Levante (east) is offshore on the Cádiz side, Poniente (west) can be offshore on parts of the Costa del Sol. Model forecast from Open-Meteo: check the beach before you go.</span></p>
+      <p class="note" style="margin-top:8px">${icon("info")}<span>10:00–19:00, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Levante (east) is offshore on the Cádiz side, Poniente (west) can be offshore on parts of the Costa del Sol. Waves are the open-sea forecast just offshore; on the beach they're usually a little smaller. Model forecasts from Open-Meteo: check the beach before you go.</span></p>
     </div>`;
   }
   function solarForecastCard() {
@@ -2357,6 +2376,7 @@
       closeMore && closeMore();
       if (location.hash !== "#" + page) location.hash = "#" + page;
       else render(true);
+      if (d.sheet === "weather") setTimeout(() => { wx.sheet = true; sheet(weatherCard(true) || '<p>Loading the forecast…</p>', true); }, 350);
     }, { type: "subscribe_events", event_type: "finca_show_page" }).catch(() => {});
     H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }

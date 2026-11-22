@@ -986,3 +986,13 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .wind-coast td.wc.maybe { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
 .wind-coast td.wc.strong, .wind-coast td.wc.offshore { color: #ff6b7a; border-color: color-mix(in srgb, #ff6b7a 50%, transparent); }
 .wind-chip.offshore { color: #ff6b7a; border-color: color-mix(in srgb, #ff6b7a 55%, transparent); }
+
+/* 22 Nov: waves */
+.wsym { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
+.wave-chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); display: inline-flex; align-items: center; }
+.wave-chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.wave-chip.warn.big { font-weight: 700; background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.wave-chip.danger { color: #ff6b7a; font-weight: 700; border-color: color-mix(in srgb, #ff6b7a 60%, transparent); background: color-mix(in srgb, #ff6b7a 12%, transparent); }
+.wind-coast td.wc i.wv { display: block; font-style: normal; font-size: 10px; margin-top: 2px; white-space: nowrap; }
+.wind-coast td.wc i.wv .wsym { width: 11px; height: 11px; margin-right: 1px; }
+.wind-coast td.wc i.wv.warn { color: var(--warn); } .wind-coast td.wc i.wv.danger { color: #ff6b7a; font-weight: 700; }
