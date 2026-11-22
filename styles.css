@@ -996,3 +996,11 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .wind-coast td.wc i.wv { display: block; font-style: normal; font-size: 10px; margin-top: 2px; white-space: nowrap; }
 .wind-coast td.wc i.wv .wsym { width: 11px; height: 11px; margin-right: 1px; }
 .wind-coast td.wc i.wv.warn { color: var(--warn); } .wind-coast td.wc i.wv.danger { color: #ff6b7a; font-weight: 700; }
+
+/* 22 Nov (owner): press feedback.
+   On/off switches: clearly faded when off, solid when on. One-shot buttons: light up for about a second when tapped. */
+.tile:has([data-toggle]):not(.is-on), .qbtn[data-toggle]:not(.is-on), .btn[aria-pressed="false"], .bulb[aria-pressed="false"] { opacity: .62; transition: opacity .25s ease; }
+.tile.is-on, .qbtn.is-on, .btn[aria-pressed="true"], .bulb[aria-pressed="true"] { opacity: 1; transition: opacity .25s ease; }
+.tap-flash { box-shadow: 0 0 0 2px color-mix(in srgb, var(--turq) 80%, transparent), 0 0 22px -2px var(--turq) !important;
+  filter: brightness(1.2); transition: box-shadow .12s ease, filter .12s ease; }
+@media (prefers-reduced-motion: reduce) { .tap-flash { filter: none; } }

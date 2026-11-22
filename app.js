@@ -2320,7 +2320,7 @@
   // ---------- UI sounds (21 Nov) ----------
   // Original sounds made by the app itself (Web Audio, no files, nothing downloaded): a faint "tick" for buttons and a
   // short rising "power-up" chirp for the Jarvis button. Very quiet; switch off in More → Extras (or Checks on the tablet).
-  const sfx = { ctx: null, on: (() => { try { return localStorage.getItem("finca.sfx") === "on"; } catch { return false; } })() };   // 21 Nov: off by default (owner will supply his own sound)
+  const sfx = { ctx: null, on: (() => { try { return localStorage.getItem("finca.sfx") !== "off"; } catch { return true; } })() };   // 22 Nov (owner): on, using the Jarvis chirp
   function sfxCtx() {
     if (!sfx.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { sfx.ctx = new C(); } catch { return null; } }
     if (sfx.ctx.state === "suspended") sfx.ctx.resume().catch(() => {});
@@ -2332,9 +2332,9 @@
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.03);
   }
-  function sfxTick() {
+  function sfxTick() {   // 22 Nov (owner): the Jarvis "listening" chirp, slightly softer and shorter, for every button and tab
     if (!sfx.on) return; const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
-    sfxTone(c, t, 2600, 1900, 0.03, 0.03); sfxTone(c, t + 0.012, 5200, 4200, 0.02, 0.008);
+    sfxTone(c, t, 1180, 1760, 0.075, 0.028);
   }
   function sfxJarvis() {
     if (!sfx.on) return; const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
@@ -2348,11 +2348,17 @@
     if (sfx.on) sfxJarvis(); toast(sfx.on ? "Button sounds on" : "Button sounds off");
     document.querySelectorAll("[data-sfx-label]").forEach(el => { el.textContent = sfx.on ? "Sounds on" : "Sounds off"; });
   }
-  // Every button / tile / link tap: the faint tick. The Jarvis button gets its own chirp (below). Sliders stay silent.
+  // Every button / tile / link / tab tap: the Jarvis chirp. The Jarvis button gets its own (below). Sliders stay silent.
+  // 22 Nov (owner): one-shot buttons (not on/off switches) also light up for about a second so the press is visible.
   document.addEventListener("pointerdown", ev => {
     const t = ev.target.closest && ev.target.closest("button, a[href], [data-action], [data-toggle], [data-media], [data-clip], [data-live], .tile, select");
     if (!t || t.id === "jarvis-fab" || t.closest("#jarvis-fab") || ev.target.closest("input[type=range]")) return;
     sfxTick();
+    const flash = t.closest(".tile") || t;
+    if (!flash.matches("[data-toggle], [aria-pressed], select") && !flash.querySelector("[data-toggle]")) {
+      flash.classList.remove("tap-flash"); void flash.offsetWidth; flash.classList.add("tap-flash");
+      clearTimeout(flash._tapT); flash._tapT = setTimeout(() => flash.classList.remove("tap-flash"), 1000);
+    }
   }, { capture: true, passive: true });
 
   // Tap = voice HUD; press and hold (0.6 s) = typing window with "Reply through".
