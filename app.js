@@ -419,6 +419,7 @@
     { name: "Sancti Petri", area: "La Barrosa", faces: 255, keep: false },
     { name: "Cádiz", area: "Cortadura", faces: 270, keep: false },
     { name: "Fuengirola", area: "", faces: 120, keep: false },
+    { name: "Cabopino", area: "Marbella", faces: 160, keep: true },   // owner, 22 Nov
   ];
   const wind = { at: 0, spots: null, busy: false };
   async function loadWind() {
