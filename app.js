@@ -227,6 +227,22 @@
       throw e;
     }
   }
+  // 22 Nov: the kitchen lights go through Tuya's cloud, which now and then rejects a command ("The Tuya cloud rejected the
+  // command"). Brightness is retried once, light by light, after a short pause; only a second failure is reported, in plain words.
+  async function setBrightness(ids, pct, el) {
+    if (store.mode === "demo") return svc("light", "turn_on", { brightness_pct: pct }, { entity_id: ids });
+    const send = list => window.HAWS.callService(store.conn, "light", "turn_on", { brightness_pct: pct }, { entity_id: list });
+    try { await send(ids); return; } catch { /* try again below */ }
+    await new Promise(r => setTimeout(r, 1500));
+    const failed = [];
+    for (const id of ids) { try { await send([id]); } catch { failed.push(id); } await new Promise(r => setTimeout(r, 300)); }
+    if (failed.length) {
+      const room = (el && el.getAttribute("aria-label") || "").replace(/\s*brightness$/i, "") || "Those";
+      const tuya = failed.some(id => platformOf(id) === "tuya");
+      toast(tuya ? `${room} lights: Tuya's cloud didn't accept the change. Give it a moment and try again.`
+                 : `${room} lights didn't respond to the brightness change. Try again in a moment.`);
+    }
+  }
   const sw = (id, on, label, tint = "") => `<button class="switch" role="switch" aria-checked="${on}" aria-label="${esc(label)}" data-toggle="${esc(id)}" ${tint ? `style="--tint:var(--${tint})"` : ""}></button>`;
 
   // ---------- schedules (eWeLink, display only) ----------
@@ -2317,7 +2333,7 @@
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
     const t = ev.target;
-    if (t.dataset.bri) svc("light", "turn_on", { brightness_pct: +t.value }, { entity_id: t.dataset.bri.split(",") });
+    if (t.dataset.bri) setBrightness(t.dataset.bri.split(","), +t.value, t);
     if (t.dataset.seek) { np.drag = false; svc("media_player", "media_seek", { seek_position: +t.value }, { entity_id: t.dataset.seek }); }
     if (t.dataset.vol) setVolumeSafely(t);
     if (t.id === "jreply") mem.set("jarvis.reply", t.value);
