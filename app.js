@@ -444,7 +444,7 @@
       const tooStrong = hrs.filter(x => x.k > hi).length >= 2 || gust > hi + 12;
       const win = w.length ? `${pad(w[0].hr)}:00–${pad(w[w.length - 1].hr + 1)}:00` : "";
       return tooStrong ? { v: "strong", win: "" } : g.length >= 3 ? { v: "yes", win } : w.length >= 3 ? { v: "maybe", win } : { v: "no", win: "" }; };
-    return { avg, max, gust, dir, kite: sport(15, 18, 35), foil: sport(10, 13, 30), wing: sport(13, 16, 30), windsurf: sport(15, 18, 40) };
+    return { avg, max, gust, dir, kite: sport(15, 18, 35), wing: sport(13, 16, 30), windsurf: sport(15, 18, 40) };   // 22 Nov: kite surf, wing foil, windsurf only
   }
   function windCard() {
     loadWind();
@@ -454,14 +454,14 @@
     const chip = (label, x) => `<span class="wind-chip ${x.v}" title="${x.win ? "about " + x.win : ""}">${label}${x.v === "yes" ? " ✓" : x.v === "maybe" ? " ~" : x.v === "strong" ? " !" : ""}</span>`;
     const rows = days.map((ymd, i) => { const d = windDay(ll, ymd); if (!d) return ""; const v = vv ? windDay(vv, ymd) : null;
       const label = i === 0 ? "Today" : new Date(ymd + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
-      const best = d.kite.win || d.wing.win || d.foil.win;
+      const best = d.kite.win || d.wing.win || d.windsurf.win;
       return `<div class="wind-row"><div class="wind-d">${label}</div>
         <div class="wind-main"><b>${d.dir} ${Math.round(d.avg)}–${Math.round(d.max)} kn</b> <span class="row-sub">gusts ${Math.round(d.gust)}${best ? ` · best ${best}` : ""}${v && Math.abs(v.max - d.max) >= 1 ? ` · Valdevaqueros ${Math.round(v.max)} kn` : ""}</span>
-        <div class="wind-chips">${chip("Kite", d.kite)}${chip("Kite foil", d.foil)}${chip("Wing", d.wing)}${chip("Windsurf", d.windsurf)}</div></div></div>`; }).join("");
+        <div class="wind-chips">${chip("Kite surf", d.kite)}${chip("Wing foil", d.wing)}${chip("Windsurf", d.windsurf)}</div></div></div>`; }).join("");
     const today = windDay(ll, days[0]) || {};
     const verdict = today.kite && today.kite.v === "strong" ? `Very strong at Los Lances today (gusts ${Math.round(today.gust)} knots). Experts only, if at all.`
       : today.kite && today.kite.v === "yes" ? `Kite day at Los Lances today, ${today.dir}${today.kite.win ? ", about " + today.kite.win : ""}.`
-      : today.foil && (today.foil.v === "yes" || today.foil.v === "maybe") ? "Foil weather today at Los Lances; light for a big kite."
+      : today.wing && (today.wing.v === "yes" || today.wing.v === "maybe") ? "Wing foil weather today at Los Lances; light for kiting."
       : "Not much wind at Los Lances today.";
     return `<div class="wind-box">
       <div class="card-head" style="margin-top:16px"><span class="ico">${WX_ICON.windy}</span><div class="grow"><h3>Tarifa wind</h3><div class="row-sub">${esc(verdict)}</div></div></div>
