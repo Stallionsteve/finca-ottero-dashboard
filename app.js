@@ -2047,19 +2047,29 @@
     // Follow-up (15 Nov): after a question from Jarvis, listen up to 10 s for an answer; silence → fold away quietly.
     let heardSomething = !followUp, quietT = 0;
     if (followUp) quietT = setTimeout(() => { if (!heardSomething) { J.followSilent = true; stop(); } }, 10000);
+    // 23 Nov: words spoken straight after the tap used to be lost while Home Assistant was still opening the session
+    // (audio was only sent once it said "ready"). Now the app records from the tap, keeps up to 4 s, and sends that first.
+    const tapAt = performance.now(); let preroll = [], prerollLen = 0, readyMs = null;
+    const pcm = inp => { const n = Math.floor(inp.length / ratio), out = new Uint8Array(n * 2), dv = new DataView(out.buffer);
+      for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, inp[Math.floor(i * ratio)])); dv.setInt16(i * 2, v * 0x7fff, true); } return out; };
+    const sendPcm = bytes => { const out = new Uint8Array(1 + bytes.length); out[0] = handler; out.set(bytes, 1); store.conn.socket.send(out); };
     proc.onaudioprocess = e => {
-      if (handler === null || !J.listening) return;
-      const inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio);
-      const out = new Uint8Array(1 + n * 2); out[0] = handler;
-      const dv = new DataView(out.buffer);
-      for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, inp[Math.floor(i * ratio)])); dv.setInt16(1 + i * 2, v * 0x7fff, true); }
-      store.conn.socket.send(out);
+      if (!J.listening) return;
+      const bytes = pcm(e.inputBuffer.getChannelData(0));
+      if (handler === null) { preroll.push(bytes); prerollLen += bytes.length; while (prerollLen > 16000 * 2 * 4) prerollLen -= preroll.shift().length; return; }
+      sendPcm(bytes);
+    };
+    const onReady = () => {   // Home Assistant is ready: send what was said already, then a soft "listening" blip
+      readyMs = Math.round(performance.now() - tapAt);
+      preroll.forEach(sendPcm); preroll = []; prerollLen = 0;
+      try { const c = sfxCtx(); if (c) { const t = c.currentTime + 0.01; sfxTone(c, t, 1320, 1760, 0.09, 0.035); } } catch { /* sound is optional */ }
+      store.conn.sendMessagePromise({ type: "fire_event", event_type: "finca_voice_timing", event_data: { ms: readyMs, device: /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) ? "wall tablet" : /iPhone/i.test(navigator.userAgent) ? "iPhone" : /iPad|Macintosh/i.test(navigator.userAgent) ? "iPad" : "phone", build: String(window.FINCA_VERSION || "") } }).catch(() => {});
     };
     src.connect(proc); proc.connect(ctx.destination);
     const reply = jReply();
     let speech = "", url = "";
     await runPipeline(pipelineMsg("stt", reply, { sample_rate: 16000 }), ev => {
-      if (ev.type === "run-start") handler = ev.data.runner_data.stt_binary_handler_id;
+      if (ev.type === "run-start") { handler = ev.data.runner_data.stt_binary_handler_id; if (J.listening) onReady(); }
       if (ev.type === "stt-vad-start") { heardSomething = true; clearTimeout(quietT); }
       if (ev.type === "stt-vad-end") stop();
       if (ev.type === "stt-end") { const said = ev.data.stt_output.text || ""; addMsg("me", said); if (hud.on) hud.heard(said);
