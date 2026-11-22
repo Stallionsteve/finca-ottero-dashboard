@@ -2011,6 +2011,11 @@
     if (hud.on) { hud.cancel(); return; }
     hud.open(); listen();
   }
+  // 23 Nov (owner): a rising blip the instant the microphone records (talk straight away), a falling blip when your words are sent.
+  function voiceBlip(up) {
+    try { const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
+      if (up) { sfxTone(c, t, 1180, 1760, 0.09, 0.04); } else { sfxTone(c, t, 1760, 1050, 0.11, 0.035); } } catch { /* sound is optional */ }
+  }
   async function listen(followUp = false) {
     if (J.listening) { J.listening.stop(); return; }
     if (nativeAssist()) { closeLayer(); return; }
@@ -2036,6 +2041,7 @@
     const ratio = ctx.sampleRate / 16000;
     const stop = () => {
       if (!J.listening) return;
+      voiceBlip(false);
       J.listening = null; $("#jmic") && $("#jmic").classList.remove("listening"); J.analyser = null; if (hud.on) hud.state("thinking");
       proc.disconnect(); src.disconnect(); ctx.close();
       J.micRelease = setTimeout(() => { if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; } }, 120000);
@@ -2062,10 +2068,10 @@
     const onReady = () => {   // Home Assistant is ready: send what was said already, then a soft "listening" blip
       readyMs = Math.round(performance.now() - tapAt);
       preroll.forEach(sendPcm); preroll = []; prerollLen = 0;
-      try { const c = sfxCtx(); if (c) { const t = c.currentTime + 0.01; sfxTone(c, t, 1320, 1760, 0.09, 0.035); } } catch { /* sound is optional */ }
       store.conn.sendMessagePromise({ type: "fire_event", event_type: "finca_voice_timing", event_data: { ms: readyMs, device: /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) ? "wall tablet" : /iPhone/i.test(navigator.userAgent) ? "iPhone" : /iPad|Macintosh/i.test(navigator.userAgent) ? "iPad" : "phone", build: String(window.FINCA_VERSION || "") } }).catch(() => {});
     };
     src.connect(proc); proc.connect(ctx.destination);
+    voiceBlip(true);   // recording from here: talk straight away, nothing is lost while Home Assistant gets ready
     const reply = jReply();
     let speech = "", url = "";
     await runPipeline(pipelineMsg("stt", reply, { sample_rate: 16000 }), ev => {
