@@ -1012,3 +1012,4 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .scene-chip i { font-style: normal; font-size: 11px; color: var(--sunset); }
 .scene-chip.is-on { border-color: var(--sunset); background: color-mix(in srgb, var(--sunset) 22%, transparent); color: #fff; }
 .scenes-label { flex-basis: 100%; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #9aa3c7); }
+.pill.bad { color: var(--bad, #ff6b6b); border-color: rgba(255, 107, 107, 0.45); }

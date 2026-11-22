@@ -1683,18 +1683,32 @@
   }
   // Home Assistant's own health (14 Nov): System Monitor readings; one tap switches the useful ones on.
   const SYS_WANTED = /memory_(use|usage)|processor_use|last_boot|disk_(use|usage).*(?<!free)$|load_?(1|5)/i;
+  // 22 Nov (owner): "I don't understand it, and couldn't close it". Now a one-line plain-English summary; the few readings
+  // that matter (one each, no duplicates) sit behind Show details / Hide details, remembered on this device.
+  let sysOpen = (() => { try { return localStorage.getItem("finca.sysOpen") === "1"; } catch { return false; } })();
   function sysHealthCard() {
     const reg = Object.values(store.ents).filter(e => e.platform === "systemmonitor" && SYS_WANTED.test(e.entity_id) && !/swap|ipv|network|packet|throughput/i.test(e.entity_id));
     if (!reg.length && store.mode !== "demo") return "";
     const off = reg.filter(e => e.disabled_by);
-    const live = reg.filter(e => !e.disabled_by).map(e => st(e.entity_id)).filter(Boolean);
-    const fmt = s => { const u = s.attributes.unit_of_measurement || ""; if (s.attributes.device_class === "timestamp") return ok(s) ? `${ago(s.state)}` : "—";
-      return ok(s) ? `${Math.round(+s.state * 10) / 10}${u === "%" ? "%" : " " + u}` : "—"; };
-    const warn = s => ok(s) && s.attributes.unit_of_measurement === "%" && +s.state >= 85;
-    return `<article class="card"><div class="card-head"><span class="ico">${icon("gauge")}</span><div class="grow"><h3>Home Assistant health</h3><div class="row-sub">The computer it runs on (System Monitor)</div></div></div>
-      ${live.map(s => `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s).replace(/^system monitor\\s*/i, ""))}</div></div><span class="pill ${warn(s) ? "warn" : "ok"}">${esc(fmt(s))}</span></div>`).join("")}
-      ${off.length ? `<p class="note">${icon("info")}<span>${off.length} health reading${off.length === 1 ? " is" : "s are"} switched off.</span></p>
-        <div class="acts" style="grid-template-columns:1fr;margin-top:10px"><button class="btn btn-primary" data-action="sys-enable">Switch on health readings</button></div>` : ""}
+    const pct = re => { const e = reg.find(x => !x.disabled_by && re.test(x.entity_id)); const s = e && st(e.entity_id); return s && ok(s) && isFinite(+s.state) ? Math.round(+s.state) : null; };
+    const mem = pct(/memory_usage$/), cpu = pct(/processor_use$/), disk = pct(/disk_usage$/);
+    const bootE = reg.find(x => !x.disabled_by && /last_boot/.test(x.entity_id)), boot = bootE && st(bootE.entity_id);
+    const known = [mem, cpu, disk].filter(v => v !== null);
+    const worst = known.length ? Math.max(...known) : null;
+    const verdict = worst === null ? "No readings yet" : worst >= 90 ? "Struggling" : worst >= 75 ? "Working hard" : "Running well";
+    const cls = worst === null ? "" : worst >= 90 ? "bad" : worst >= 75 ? "warn" : "ok";
+    const plain = worst === null ? "Switch on the readings below to see how the computer is coping." :
+      (worst >= 75 ? "Something is running close to its limit. If Jarvis feels slow, a restart of the iMac usually helps. " : "Plenty of room to spare. ") +
+      [mem !== null ? `Memory ${mem}% used` : "", cpu !== null ? `processor ${cpu}% busy` : "", disk !== null ? `storage ${disk}% full` : ""].filter(Boolean).join(", ") + ".";
+    const row = (label, hint, v) => v === null ? "" : `<div class="row"><div class="row-body"><div class="row-title">${label}</div><div class="row-sub">${hint}</div></div><span class="pill ${v >= 90 ? "bad" : v >= 75 ? "warn" : "ok"}">${v}%</span></div>`;
+    return `<article class="card"><div class="card-head"><span class="ico">${icon("gauge")}</span><div class="grow"><h3>Home Assistant health</h3><div class="row-sub">How the iMac running the house is coping</div></div>
+        <span class="pill ${cls}">${verdict}</span></div>
+      <p class="row-sub" style="margin-top:10px">${esc(plain)}</p>
+      ${known.length || boot ? `<button class="btn" data-action="sys-details" aria-expanded="${sysOpen}" style="margin-top:10px">${sysOpen ? "Hide details" : "Show details"}</button>` : ""}
+      ${sysOpen ? `<div style="margin-top:8px">
+        ${row("Memory", "Under 75% is comfortable", mem)}${row("Processor", "Short spikes are normal", cpu)}${row("Storage", "Space used on the SSD", disk)}
+        ${boot && ok(boot) ? `<div class="row"><div class="row-body"><div class="row-title">Last restart</div></div><span class="pill ok">${esc(ago(boot.state))}</span></div>` : ""}</div>` : ""}
+      ${off.length && !known.length ? `<div class="acts" style="grid-template-columns:1fr;margin-top:10px"><button class="btn btn-primary" data-action="sys-enable">Switch on health readings</button></div>` : ""}
     </article>`;
   }
   async function enableSysHealth() {
@@ -2198,6 +2212,7 @@
     else if (a === "share-app") { ev.preventDefault(); shareApp(); }
     else if (a === "sfx-toggle") { ev.preventDefault(); sfxToggle(); }
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
+    else if (a === "sys-details") { ev.preventDefault(); sysOpen = !sysOpen; try { localStorage.setItem("finca.sysOpen", sysOpen ? "1" : "0"); } catch { /* fine */ } lastHtml = ""; render(false); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
     else if (a === "close-nav") closeLayer();
     else if (a === "close") { if (ev.target === t || t.tagName === "BUTTON") { closeLayer(); if (location.hash === "#jarvis") history.replaceState(null, "", "#home"); renderNav(current()); } }

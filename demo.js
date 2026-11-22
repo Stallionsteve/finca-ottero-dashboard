@@ -29,6 +29,10 @@ window.FincaDemo = (() => {
     ["Play Bar", "Play Bar Left", "TV Left 1", "TV Left 2"].forEach((n, i) => light(`light.lounge_${i + 1}`, n, "lounge", false, 60));
     light("light.hue_white_lamp_1", "Hue White Lamp 1", "living", false, 80);
     light("light.pool_house", "Pool House", "pool", false, 65);
+    // System Monitor (the iMac running Home Assistant)
+    [["sensor.system_monitor_memory_usage", "39.2", "%"], ["sensor.system_monitor_processor_use", "4", "%"], ["sensor.system_monitor_disk_usage", "9.7", "%"],
+     ["sensor.system_monitor_disk_usage_config", "9.7", "%"], ["sensor.system_monitor_disk_use", "18.2", "GiB"]].forEach(([id, v, u]) =>
+      ent(id, v, { friendly_name: "System Monitor " + id.split("monitor_")[1].replace(/_/g, " "), unit_of_measurement: u }, { platform: "systemmonitor" }));
     // Hue scenes (names as on the real bridge; * = dynamic)
     [["terrace", "Terrace", ["Cancun*", "Dreamy dusk*", "Green*", "Honolulu*", "Silverstone*", "Tropical twilight*", "Rolling hills*", "Crocus*"]],
      ["living", "Living room", ["Honolulu*", "Fuchsia frost*", "Rolling hills*", "Relax"]], ["bar", "Bar", ["Dimmed", "Bright"]]].forEach(([area, g, list]) => {
