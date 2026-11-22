@@ -2014,7 +2014,7 @@
   // 23 Nov (owner): a rising blip the instant the microphone records (talk straight away), a falling blip when your words are sent.
   function voiceBlip(up) {
     try { const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
-      if (up) { sfxTone(c, t, 1180, 1760, 0.09, 0.04); } else { sfxTone(c, t, 1760, 1050, 0.11, 0.035); } } catch { /* sound is optional */ }
+      if (up) { sfxTone(c, t, 1180, 1760, 0.09, 0.4); } else { sfxTone(c, t, 1760, 1050, 0.11, 0.35); } } catch { /* sound is optional */ }
   }
   async function listen(followUp = false) {
     if (J.listening) { J.listening.stop(); return; }
@@ -2334,14 +2334,14 @@
   }
   function sfxTick() {   // 22 Nov (owner): the Jarvis "listening" chirp, slightly softer and shorter, for every button and tab
     if (!sfx.on) return; const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
-    sfxTone(c, t, 1180, 1760, 0.075, 0.028);
+    sfxTone(c, t, 1180, 1760, 0.075, 0.32);   // 22 Nov (owner): full volume on the device (never the speakers)
   }
   function sfxJarvis() {
     if (!sfx.on) return; const c = sfxCtx(); if (!c) return; const t = c.currentTime + 0.005;
-    sfxTone(c, t, 420, 880, 0.2, 0.045, "triangle");          // soft rising sweep
-    sfxTone(c, t + 0.06, 1320, 1980, 0.16, 0.022);              // shimmer
-    sfxTone(c, t + 0.13, 2640, 3520, 0.12, 0.014);              // sparkle on top
-    sfxTone(c, t + 0.2, 1760, 1760, 0.09, 0.012);                // settle
+    sfxTone(c, t, 420, 880, 0.2, 0.4, "triangle");            // rising sweep
+    sfxTone(c, t + 0.06, 1320, 1980, 0.16, 0.2);                // shimmer
+    sfxTone(c, t + 0.13, 2640, 3520, 0.12, 0.12);               // sparkle on top
+    sfxTone(c, t + 0.2, 1760, 1760, 0.09, 0.1);                 // settle
   }
   function sfxToggle() {
     sfx.on = !sfx.on; try { localStorage.setItem("finca.sfx", sfx.on ? "on" : "off"); } catch { /* storage unavailable */ }
