@@ -443,8 +443,8 @@
         return { hourly: { time: t, wave_height: h } }; });
       else { try { const r2 = await fetch("/local/finca-ottero/wind/waves.json?t=" + Date.now(), { cache: "no-store" }); wv = r2.ok ? await r2.json() : null; } catch { wv = null; } }
       if (Array.isArray(data) && data.length) wind.spots = data.slice(0, WIND_SPOTS.length).map((loc, i) => ({ ...WIND_SPOTS[i], h: loc.hourly,
-        waves: (() => { const o = {}, H = Array.isArray(wv) && wv[i] && wv[i].hourly; if (!H) return o;   // daytime (10:00–19:00) maximum per day
-          H.time.forEach((t, j) => { const hr = +t.slice(11, 13), v = H.wave_height[j]; if (hr >= 10 && hr <= 19 && typeof v === "number") { const d = t.slice(0, 10); o[d] = Math.max(o[d] || 0, v); } });
+        waves: (() => { const o = {}, H = Array.isArray(wv) && wv[i] && wv[i].hourly; if (!H) return o;   // daytime (11:00–18:30) maximum per day
+          H.time.forEach((t, j) => { const hr = +t.slice(11, 13), v = H.wave_height[j]; if (hr >= 11 && hr <= 18 && typeof v === "number") { const d = t.slice(0, 10); o[d] = Math.max(o[d] || 0, v); } });
           return o; })() }));
       wind.at = Date.now();
       const open = document.querySelector("#layer .sheet"); if (open && wx.sheet) open.innerHTML = weatherCard(true);
@@ -452,10 +452,10 @@
   }
   const levOrPon = deg => { const d = ((deg % 360) + 360) % 360; return d >= 45 && d <= 135 ? "Levante" : d >= 225 && d <= 315 ? "Poniente" : compass(d); };
   const angDiff = (a, b) => { const d = Math.abs((((a - b) % 360) + 540) % 360 - 180); return d; };
-  // one beach, one day → daylight (10:00–19:00) summary + a verdict per sport
+  // one beach, one day → daylight (11:00–18:30) summary + a verdict per sport
   function windDay(spot, ymd) {
     const H = spot.h, hrs = [];
-    H.time.forEach((t, i) => { if (t.slice(0, 10) === ymd) { const hr = +t.slice(11, 13); if (hr >= 10 && hr <= 19) hrs.push({ hr, k: H.wind_speed_10m[i], g: H.wind_gusts_10m[i], d: H.wind_direction_10m[i] }); } });
+    H.time.forEach((t, i) => { if (t.slice(0, 10) === ymd) { const hr = +t.slice(11, 13); if (hr >= 11 && hr <= 18) hrs.push({ hr, k: H.wind_speed_10m[i], g: H.wind_gusts_10m[i], d: H.wind_direction_10m[i] }); } });   // 11:00–18:30 (owner, 23 Nov)
     if (!hrs.length) return null;
     const avg = hrs.reduce((a, x) => a + x.k, 0) / hrs.length, max = Math.max(...hrs.map(x => x.k)), gust = Math.max(...hrs.map(x => x.g));
     const dirs = hrs.map(x => levOrPon(x.d)), dir = [...dirs].sort((a, b) => dirs.filter(v => v === a).length - dirs.filter(v => v === b).length).pop();
@@ -465,7 +465,7 @@
     // surfing (red), a caution for wing foiling and windsurfing (amber). Straight onshore makes kiting tricky (amber).
     const sport = (lo, good, hi, kind) => {
       const w = hrs.filter(x => x.k >= lo && x.k <= hi), g = hrs.filter(x => x.k >= good && x.k <= hi);
-      const win = w.length ? `${pad(w[0].hr)}:00–${pad(w[w.length - 1].hr + 1)}:00` : "";
+      const win = w.length ? `${pad(w[0].hr)}:00–${w[w.length - 1].hr >= 18 ? "18:30" : pad(w[w.length - 1].hr + 1) + ":00"}` : "";
       if (hrs.filter(x => x.k > hi).length >= 2 || gust > hi + 12) return { v: "strong", win: "" };
       const off = w.length >= 3 && w.filter(offshoreHr).length > w.length / 2, on = w.length >= 3 && w.filter(onshoreHr).length > w.length / 2;
       if (off && !spot.rescue) return kind === "kite" ? { v: "offshore", win } : { v: "maybe", win, note: "offshore" };
@@ -526,7 +526,7 @@
       <h3 style="margin:18px 0 6px">Along the coast</h3>
       <p class="row-sub" style="margin:0 0 6px">Málaga to Cádiz · strongest wind in knots · K kite surf, W wing foil, S windsurf · off = offshore · ! too strong · waves (daytime, metres) shown from 0.5 m · ⚠ from 0.6 m, red from 2 m, skull from 3 m</p>
       ${table}
-      <p class="note" style="margin-top:8px">${icon("info")}<span>10:00–19:00, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Offshore is only flagged where there are no rescue boats (red for kite surf, amber for wing and windsurf); Los Lances has rescue boats. Straight onshore makes kiting tricky (~). Waves are the open-sea forecast just offshore; on the beach they're usually a little smaller. Model forecasts from Open-Meteo: check the beach before you go.</span></p>
+      <p class="note" style="margin-top:8px">${icon("info")}<span>11:00–18:30, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Offshore is only flagged where there are no rescue boats (red for kite surf, amber for wing and windsurf); Los Lances has rescue boats. Straight onshore makes kiting tricky (~). Waves are the open-sea forecast just offshore; on the beach they're usually a little smaller. Model forecasts from Open-Meteo: check the beach before you go.</span></p>
     </div>`;
   }
   function solarForecastCard() {
