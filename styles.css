@@ -972,3 +972,17 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .wind-chip.yes { color: #3ee6a0; border-color: color-mix(in srgb, #3ee6a0 55%, transparent); background: color-mix(in srgb, #3ee6a0 10%, transparent); }
 .wind-chip.maybe { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
 .wind-chip.strong { color: #ff6b7a; border-color: color-mix(in srgb, #ff6b7a 55%, transparent); }
+
+/* 22 Nov: wind along the coast */
+.wind-coast { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.wind-coast table { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 360px; font-size: 13px; }
+.wind-coast thead th { color: var(--muted); font-weight: 600; font-size: 12px; text-align: center; }
+.wind-coast tbody th { text-align: left; font-weight: 600; color: var(--sand); white-space: nowrap; padding-right: 4px; }
+.wind-coast tbody th em { display: block; font-style: normal; font-size: 10px; color: var(--turq); letter-spacing: .08em; text-transform: uppercase; }
+.wind-coast td.wc { text-align: center; border-radius: 8px; padding: 5px 2px; border: 1px solid var(--line); color: var(--muted); line-height: 1.15; }
+.wind-coast td.wc b { display: block; font-family: var(--font-data); font-weight: 500; }
+.wind-coast td.wc span { font-size: 11px; letter-spacing: .05em; }
+.wind-coast td.wc.yes { color: #3ee6a0; border-color: color-mix(in srgb, #3ee6a0 55%, transparent); background: color-mix(in srgb, #3ee6a0 10%, transparent); }
+.wind-coast td.wc.maybe { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.wind-coast td.wc.strong, .wind-coast td.wc.offshore { color: #ff6b7a; border-color: color-mix(in srgb, #ff6b7a 50%, transparent); }
+.wind-chip.offshore { color: #ff6b7a; border-color: color-mix(in srgb, #ff6b7a 55%, transparent); }
