@@ -29,6 +29,13 @@ window.FincaDemo = (() => {
     ["Play Bar", "Play Bar Left", "TV Left 1", "TV Left 2"].forEach((n, i) => light(`light.lounge_${i + 1}`, n, "lounge", false, 60));
     light("light.hue_white_lamp_1", "Hue White Lamp 1", "living", false, 80);
     light("light.pool_house", "Pool House", "pool", false, 65);
+    // Hue scenes (names as on the real bridge; * = dynamic)
+    [["terrace", "Terrace", ["Cancun*", "Dreamy dusk*", "Green*", "Honolulu*", "Silverstone*", "Tropical twilight*", "Rolling hills*", "Crocus*"]],
+     ["living", "Living room", ["Honolulu*", "Fuchsia frost*", "Rolling hills*", "Relax"]], ["bar", "Bar", ["Dimmed", "Bright"]]].forEach(([area, g, list]) => {
+      const gk = g.toLowerCase().replace(/\W+/g, "_");
+      list.forEach(n => { const nn = n.replace("*", ""); ent(`scene.${gk}_${gk}_${nn.toLowerCase().replace(/\W+/g, "_")}`, minsAgo(300), { friendly_name: `${g} ${nn}`, name: nn, group_name: g, is_dynamic: n.endsWith("*") }, { area, platform: "hue" }); });
+      ent(`select.${gk}_${gk}_scene`, area === "bar" ? "Dimmed" : "unknown", { friendly_name: `${g} Scene`, options: list.map(n => n.replace("*", "")) }, { area, platform: "hue" });
+    });
 
     const sw = (id, name, state, area, platform = "sonoff") => ent(id, state, { friendly_name: name }, { area, platform });
     sw("switch.main_gate", "Main gate", "off", null);
@@ -103,6 +110,10 @@ window.FincaDemo = (() => {
         }
       });
       syncGroups();
+    } else if (domain === "scene") {
+      list.forEach(id => { const sc = store.states[id]; if (!sc) return; const area = store.ents[id].area_id;
+        Object.values(store.states).filter(x => x.entity_id.startsWith("light.") && store.ents[x.entity_id].area_id === area).forEach(x => set(x.entity_id, "on", { brightness: 180 }));
+        const g = sc.attributes.group_name.toLowerCase().replace(/\W+/g, "_"); set(`select.${g}_${g}_scene`, sc.attributes.name); set(id, now()); });
     } else if (domain === "switch") {
       list.forEach(id => {
         if (id === "switch.main_gate") return; // momentary: stays off

@@ -1004,3 +1004,11 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .tap-flash { box-shadow: 0 0 0 2px color-mix(in srgb, var(--turq) 80%, transparent), 0 0 22px -2px var(--turq) !important;
   filter: brightness(1.2); transition: box-shadow .12s ease, filter .12s ease; }
 @media (prefers-reduced-motion: reduce) { .tap-flash { filter: none; } }
+
+/* 22 Nov (owner): Hue scene chips on each lighting room card */
+.scenes { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.scene-chip { cursor: pointer; min-height: 36px; padding: 6px 12px; border-radius: 999px; font: inherit; font-size: 13px; color: var(--sand);
+  background: rgba(10, 15, 36, 0.5); border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; }
+.scene-chip i { font-style: normal; font-size: 11px; color: var(--sunset); }
+.scene-chip.is-on { border-color: var(--sunset); background: color-mix(in srgb, var(--sunset) 22%, transparent); color: #fff; }
+.scenes-label { flex-basis: 100%; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #9aa3c7); }

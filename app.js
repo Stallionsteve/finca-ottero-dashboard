@@ -683,8 +683,30 @@
       ${master && dimmable(master) ? `<div class="bri">
         <input type="range" id="bri-${esc(b.name.replace(/\W/g, ""))}" min="1" max="100" value="${bri || 50}" style="--val:${bri || 50}%" data-bri="${esc(ids)}" aria-label="${esc(b.name)} brightness" ${anyOn ? "" : "disabled"}>
         <span class="v">${anyOn ? bri + "%" : "Off"}</span></div>` : ""}
+      ${sceneChips(b)}
       ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" ${ok(s) ? "" : "disabled"} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
     </article>`;
+  }
+  // 22 Nov (owner): Hue scenes for each room, pulled live from Home Assistant (scene.* in the same area). The active one
+  // is lit from the Hue room's "scene" select (select.<room>_scene); dynamic scenes show a small sparkle.
+  function roomScenes(name) {
+    const key = name.toLowerCase();
+    return all("scene").filter(x => platformOf(x.entity_id) === "hue" || store.mode === "demo")
+      .filter(x => (areaOf(x.entity_id) || x.attributes.group_name || "").toLowerCase() === key)
+      .map(x => ({ id: x.entity_id, name: x.attributes.name || nm(x).replace(new RegExp("^" + (x.attributes.group_name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(x), dyn: !!x.attributes.is_dynamic, group: x.attributes.group_name || "" }))
+      .sort((p, q) => natCmp(p.name, q.name));
+  }
+  function activeScene(list, anyOn) {
+    if (!anyOn || !list.length) return "";
+    const g = list[0].group.toLowerCase().replace(/\W+/g, "_");
+    const sel = st(`select.${g}_${g}_scene`) || all("select").find(x => /_scene$/.test(x.entity_id) && areaOf(x.entity_id) && areaOf(x.entity_id) === areaOf(list[0].id));
+    return sel && ok(sel) ? sel.state : "";
+  }
+  function sceneChips(b) {
+    const list = roomScenes(b.name); if (!list.length) return "";
+    const members = b.lights.length ? b.lights : (b.group ? [b.group] : []);
+    const cur = activeScene(list, members.some(x => x.state === "on") || (b.group && b.group.state === "on"));
+    return `<div class="scenes" role="group" aria-label="${esc(b.name)} scenes"><span class="scenes-label">Scenes</span>${list.map(x => `<button class="scene-chip ${x.name === cur ? "is-on" : ""}" data-scene="${esc(x.id)}">${x.dyn ? '<i aria-hidden="true">✦</i>' : ""}${esc(x.name)}</button>`).join("")}</div>`;
   }
   function swatchOf(s) {
     if (!s || s.state !== "on") return "conic-gradient(#ff5c5c, #ffd25c, #5cff8a, #5ce1ff, #8a5cff, #ff5cc8, #ff5c5c)";
@@ -2095,7 +2117,7 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-shuffle],[data-repeat],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-shuffle],[data-repeat],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],[data-scene],#jmic");
     if (!t) return;
     const d = t.dataset;
     try { recordUse(usageKey(d, t)); } catch { /* never block the button */ }
@@ -2116,6 +2138,7 @@
       svc(domainOf(d.toggle), s.state === "on" || (domainOf(d.toggle) === "climate" && s.state !== "off") ? "turn_off" : "turn_on", {}, { entity_id: d.toggle });
       return;
     }
+    if (d.scene) { svc("scene", "turn_on", {}, { entity_id: d.scene }).catch(() => {}); return; }
     if (d.area) { const ids = d.area.split(","); const on = t.getAttribute("aria-checked") === "true"; svc("light", on ? "turn_off" : "turn_on", {}, { entity_id: ids }); return; }
     if (d.temp) { const s = st(d.temp); svc("climate", "set_temperature", { temperature: Math.round((s.attributes.temperature + parseFloat(d.delta)) * 10) / 10 }, { entity_id: d.temp }); return; }
     if (d.hvac) { svc("climate", "set_hvac_mode", { hvac_mode: d.mode }, { entity_id: d.hvac }); return; }
