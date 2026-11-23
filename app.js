@@ -2307,17 +2307,18 @@
     // First drop any speaker left in the lead's group from last time that isn't picked now.
     const stale = (((store.states[lead] || {}).attributes || {}).group_members || []).filter(e => e !== lead && !where.includes(e));
     let targets = sonos.length > 1 ? [lead, ...others] : where;
+    const vol = startVolume(where);
     const group = Promise.all(stale.map(e => svcEach("media_player", "unjoin", {}, [e]).catch(() => null)))
       .then(() => sonos.length > 1 ? joinEach(lead, sonos.slice(1)) : null)
       .then(j => { if (j && j.bad.length) targets = [...targets, ...j.bad]; });   // couldn't group: they get the music on their own
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
-    setPlay("busy"); tvOffFor(where);
+    setPlay("busy");
     // 23 Nov (owner): Spotify is signed out on the TV for good, so the old "stop Spotify on the TV first" step is gone.
     group
       // 23 Nov: all together first; if Home Assistant refuses, try each speaker on its own so one awkward player
       // (e.g. the TV) can't stop the music everywhere else. Says which ones didn't join.
-      .then(() => playEach(data, targets))
+      .then(() => vol).then(() => playEach(data, targets))
       .then(res => { const playing = res.ok.length;
         if (!playing) throw new Error("none");
         if (pick && /^liked songs/i.test(pick.name)) svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: res.ok[0] }).catch(() => null);
@@ -2331,10 +2332,11 @@
     document.querySelectorAll(".st-card.on").forEach(x => x.classList.remove("on")); f.classList.add("on");
     const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => SONOS_OF[b.dataset.spk]).filter(Boolean);
     if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
-    const lead = picked[0], fav = sel.value; tvOffFor(picked);
+    const lead = picked[0], fav = sel.value;
     const stale = ((st(lead) || { attributes: {} }).attributes.group_members || []).filter(e => e !== lead && !picked.includes(e));
     Promise.all(stale.map(e => svcEach("media_player", "unjoin", {}, [e]).catch(() => null)))
       .then(() => picked.length > 1 ? joinEach(lead, picked.slice(1)) : { ok: [], bad: [] })
+      .then(j => startVolume(picked).then(() => j))
       .then(j => svcEach("media_player", "select_source", { source: fav }, [lead, ...((j && j.bad) || [])], fav)
         .then(r => { if (r.ok.length) toast(`Playing ${fav}${picked.length > 1 ? ` on ${r.ok.length + ((j && j.ok.length) || 0)} speaker${r.ok.length + ((j && j.ok.length) || 0) === 1 ? "" : "s"}` : ""}`); }))
       .catch(() => null);
@@ -2371,7 +2373,7 @@
       .then(r => { if (r.ok.length) toast(`${r.ok.map(nmOf).join(" and ")} playing too (separate Sonos S1 system)${r.bad.length ? `; ${r.bad.map(nmOf).join(" and ")} couldn't` : ""}`);
                    else toast(`${s1add.map(nmOf).join(" and ")} couldn't start`); }).catch(() => null);
     if (s1drop.length) svcEach("media_player", "media_pause", {}, s1drop).catch(() => null);
-    if (add.length) joinEach(lead, add)
+    if (add.length) startVolume(add).then(() => joinEach(lead, add))
       .then(r => toast(r.bad.length ? `${r.ok.length ? r.ok.map(nmOf).join(" and ") + " joined; " : ""}${r.bad.map(nmOf).join(" and ")} couldn't join` :
                        r.ok.length === 1 ? `${nmOf(r.ok[0])} joined the music` : `${r.ok.length} speakers joined the music`)).catch(() => null);
     if (drop.length) svcEach("media_player", "unjoin", {}, drop).then(r => { if (r.ok.length) toast(r.ok.length === 1 ? `${nmOf(r.ok[0])} left the music` : `${r.ok.length} speakers left the music`); }).catch(() => null);
@@ -2400,13 +2402,10 @@
     for (const m of members) { try { await call([m]); ok_.push(m); } catch { bad.push(m); } }
     return { ok: ok_, bad };
   }
-  // 23 Nov (owner): music in the living room means the TV goes off (only when the living room speakers are chosen).
-  const TV_POWER = "media_player.65pus8505_12";
-  function tvOffFor(list) {
-    if (!list.some(e => /^media_player\.tv_room(_tv_room)?$/.test(e))) return;
-    const tv = st(TV_POWER); if (!tv || ["off", "standby", "unavailable", "unknown"].includes(tv.state) || store.mode === "demo") return;
-    window.HAWS.callService(store.conn, "media_player", "turn_off", {}, { entity_id: TV_POWER }).catch(() => {});
-  }
+  // 23 Nov (owner): music starts at 25% on the chosen speakers (no surprise 90% after a party); adjust afterwards.
+  // The TV is left alone: music on the living room speakers simply takes over their sound.
+  const START_VOL = 0.25;
+  const startVolume = list => svcEach("media_player", "volume_set", { volume_level: START_VOL }, list).catch(() => null);
   async function playEach(data, targets) {
     if (store.mode === "demo") { await svc("music_assistant", "play_media", data, { entity_id: targets }); return { ok: targets, bad: [] }; }
     const call = list => window.HAWS.callService(store.conn, "music_assistant", "play_media", data, { entity_id: list });
