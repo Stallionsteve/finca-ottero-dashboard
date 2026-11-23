@@ -1912,7 +1912,7 @@
     if (hud.on) hud.say(speech || "I'm afraid I have no answer for that.");
     // another speaker chosen under "Reply through": always send it there (also while the voice display is open)
     if (reply !== "device" && reply !== "none" && speech && store.mode === "live") {
-      try { const pl = jarvisPipeline(); svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "cedar" } }, { entity_id: C.jarvis.sayScript }).catch(() => {}); } catch { /* toast shown */ }
+      try { const pl = jarvisPipeline(); svc("script", "turn_on", { variables: { message: speech, speaker: reply, voice: (pl && pl.tts_voice) || "ballad" } }, { entity_id: C.jarvis.sayScript }).catch(() => {}); } catch { /* toast shown */ }
     }
     if (reply === "device" && ttsUrl && J.audio) {
       toSpeaker();
@@ -2555,6 +2555,16 @@
     devices.forEach(d => { store.devices[d.id] = d; });
     ents.forEach(e => { store.ents[e.entity_id] = e; });
     try { const p = await conn.sendMessagePromise({ type: "assist_pipeline/pipeline/list" }); store.pipelines = p.pipelines; store.preferredPipeline = p.preferred_pipeline; } catch { /* Assist not set up */ }
+    // 23 Nov (owner chose sample 6): Jarvis speaks with the "Jarvis butler voice" (refined British butler style), voice "ballad".
+    // One-off and idempotent: only pipelines still on the old OpenAI voice are moved; needs an admin login (else silently skipped).
+    try {
+      for (const pl of (store.pipelines || []).filter(x => x.tts_engine === "tts.openai_tts" && st("tts.jarvis_butler_voice"))) {
+        const { id, ...rest } = pl;
+        const upd = await conn.sendMessagePromise({ type: "assist_pipeline/pipeline/update", pipeline_id: id, ...rest, tts_engine: "tts.jarvis_butler_voice", tts_voice: "ballad" });
+        Object.assign(pl, upd || { tts_engine: "tts.jarvis_butler_voice", tts_voice: "ballad" });
+        conn.sendMessagePromise({ type: "fire_event", event_type: "finca_voice_switched", event_data: { pipeline: pl.name } }).catch(() => {});
+      }
+    } catch { /* not an admin, or Home Assistant refused: the old voice keeps working */ }
     let booted = false;
     // 21 Nov: "Jarvis, show me security / climate / …" → Home Assistant fires finca_show_page. Jump there only if this device
     // asked in the last 30 s, or this is the wall tablet and the question came through its "Hey Jarvis" (a voice device).
