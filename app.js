@@ -86,6 +86,7 @@
   // ---------- icons (one line style: 24px grid, 1.75 stroke, round caps) ----------
   const P = {
     home: '<path d="M3 11 12 3.5 21 11"/><path d="M5 9.5V20h14V9.5"/><circle cx="12" cy="14.5" r="2.6"/><circle cx="12" cy="14.5" r=".6" fill="currentColor"/><path d="M12 10.6v1.3M12 17.1v1.3M8.1 14.5h1.3M14.6 14.5h1.3"/>',
+    phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
     bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/><path d="M10.4 10.5 12 12.5l1.6-2"/><path d="M3 9h1.5M19.5 9H21M5.2 3.8l1 1M18.8 3.8l-1 1"/>',
     gate: '<path d="M4 21V5M20 21V5M3 5h2M19 5h2M4 9h16M4 17h16M8 9v8M12 9v8M16 9v8"/>',
     shield: '<path d="M12 2.8 4.5 5.8v5.7c0 4.6 3.1 8.2 7.5 9.7 4.4-1.5 7.5-5.1 7.5-9.7V5.8z"/><path d="M12 7.5 15.5 13.5h-7z"/><circle cx="12" cy="11.6" r=".9" fill="currentColor"/>',
@@ -1178,7 +1179,8 @@
     // 23 Nov: only players that can take a Music Assistant queue right now (the TV's player sometimes can't, and one
     // such player made Home Assistant refuse the whole play request).
     const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s))
-      && (store.mode === "demo" || ((s.attributes.supported_features || 0) & 2097152)));
+      && (store.mode === "demo" || ((s.attributes.supported_features || 0) & 2097152))
+      && !/65pus|philips/i.test(s.entity_id + " " + nm(s)));   // 23 Nov (owner): the TV is not a music speaker
     if (!ma.length && store.mode !== "demo") return "";
     // Pick one or several speakers (14 Nov): tap to add or remove; several are grouped so they play in sync.
     const picked = String(mem.get("music.speakers", mem.get("music.speaker", "media_player.tv_room"))).split(",").filter(Boolean);
@@ -1264,10 +1266,9 @@
     // players are copies of the same speakers) — plus one TV tile: the first of the TV's several entries that is online.
     const all_mp = all("media_player");
     const speakers_ = all_mp.filter(s => platformOf(s.entity_id) === "sonos");
-    const tvs = all_mp.filter(s => /65pus|philips|tv$/i.test(nm(s)) && platformOf(s.entity_id) !== "sonos" && platformOf(s.entity_id) !== "music_assistant");
-    const tv = tvs.find(ok) || tvs[0];
-    const players = [...speakers_.sort((a, b) => spkRank(a.entity_id) - spkRank(b.entity_id) || natCmp(nm(a), nm(b))), ...(tv ? [tv] : [])];
-    const prettyName = s => s === tv ? "TV" : isLR(s) ? "Living room" : nm(s);
+    // 23 Nov (owner): no TV tile or TV volume; the TV is independent and uses its own remote.
+    const players = speakers_.sort((a, b) => spkRank(a.entity_id) - spkRank(b.entity_id) || natCmp(nm(a), nm(b)));
+    const prettyName = s => isLR(s) ? "Living room" : nm(s);
     const isLR = s => s.entity_id === "media_player.tv_room_tv_room";
     const card = s => {
       const a = s.attributes, vol = Math.round((a.volume_level || 0) * 100);
@@ -1331,14 +1332,45 @@
     dev.loadedAt = Date.now(); dev.busy = false; lastHtml = ""; render(false);
   }
   const brandOf = d => [d.manufacturer, d.model].filter(Boolean).join(" ");
+  // 23 Nov (owner): "Needs a room" only lists new devices without a room; once a room is chosen (or for things that
+  // never need one: phones, the iPad, the wall tablet, computers) they move down to "Connected devices", where the room can
+  // still be changed. Duplicates of the same device (the TV appeared several times) are shown once.
+  const NO_ROOM = /iphone|ipad|phone|android|pixel|galaxy|tablet|macbook|imac|mac mini|chromebook|browser|sendspin|web player/i;
+  let devOpen = false;
+  function devGroups() {
+    const mobile = new Set(Object.values(store.ents).filter(e => e.platform === "mobile_app" && e.device_id).map(e => e.device_id));
+    const live = d => Object.values(store.ents).filter(e => e.device_id === d.id).some(e => ok(st(e.entity_id)));
+    const cutoff = Date.now() / 1000 - 30 * 86400;
+    const pool = Object.values(store.devices).filter(d => !d.disabled_by && d.entry_type !== "service" && ((d.created_at || 0) > cutoff || mobile.has(d.id)));
+    const label = d => (d.name_by_user || d.name || "New device").trim();
+    const byName = new Map();
+    pool.forEach(d => { const k = label(d).toLowerCase(), cur = byName.get(k);
+      if (!cur || (!live(cur) && live(d)) || (!!d.area_id && !cur.area_id && live(d) === live(cur))) byName.set(k, d); });
+    const list = [...byName.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    const noRoom = d => mobile.has(d.id) || NO_ROOM.test(label(d) + " " + (d.model || ""));
+    return { label, noRoom, needs: list.filter(d => !d.area_id && !noRoom(d)), connected: list.filter(d => d.area_id || noRoom(d)) };
+  }
+  // One-off (owner): the TV's several entries are called "TV" and belong to the living room.
+  let tvFixed = false;
+  async function tidyTvDevices() {
+    if (tvFixed || store.mode === "demo" || !store.conn) return; tvFixed = true;
+    const lr = Object.values(store.areas).find(a => /^living ?room$/i.test(a.name)); if (!lr) return;
+    for (const d of Object.values(store.devices).filter(d => /^65pus/i.test(d.name || "") && (d.name_by_user !== "TV" || d.area_id !== lr.area_id))) {
+      try { const r = await store.conn.sendMessagePromise({ type: "config/device_registry/update", device_id: d.id, name_by_user: "TV", area_id: lr.area_id }); store.devices[d.id] = r; } catch { /* leave it */ }
+    }
+    // …and Jarvis can't see or control it (the TV is independent; its own remote only).
+    const tvEnts = Object.keys(store.states).filter(e => /^media_player\.65pus/.test(e));
+    if (tvEnts.length) store.conn.sendMessagePromise({ type: "homeassistant/expose_entity", assistants: ["conversation"], entity_ids: tvEnts, should_expose: false }).catch(() => {});
+  }
   function viewDevices() {
     scanDevices(false);
-    const cutoff = Date.now() / 1000 - 14 * 86400;
-    const recent = Object.values(store.devices).filter(d => (d.created_at || 0) > cutoff && !d.disabled_by && d.entry_type !== "service")
-      .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 30);
+    tidyTvDevices().then(() => { lastHtml = ""; }).catch(() => {});
+    const g = devGroups();
     const areas = Object.values(store.areas).sort((a, b) => roomCmp(a.name, b.name));
     const flows = dev.flows || [];
     const addUrl = (store.hassUrl || "") + "/config/integrations/dashboard";
+    const roomSel = d => `<select class="sel" id="room-${d.id}" data-room-for="${d.id}" aria-label="Room for ${esc(g.label(d))}"><option value="">No room</option>${areas.map(a => `<option value="${esc(a.area_id)}" ${a.area_id === d.area_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>`;
+    const icoOf = d => icon(/hue|signify/i.test(d.manufacturer || "") ? "bulb" : /sonos/i.test(d.manufacturer || "") ? "music" : g.noRoom(d) ? "phone" : "sensor");
     return `<section class="view">
       <div class="page-head"><div><h1>Devices</h1><p>${esc(dev.busy ? "Scanning…" : dev.msg || "Find and set up new devices")}</p></div>
         <button class="btn btn-primary" data-action="scan" ${dev.busy ? "disabled" : ""}>${icon("sensor")}Scan for devices</button></div>
@@ -1347,18 +1379,22 @@
           <span class="ico">${icon("plus")}</span>
           <div class="grow"><h3>${esc((f.context.title_placeholders || {}).name || f.handler)}</h3><div class="row-sub">Found by ${esc(f.handler.replace(/_/g, " "))} · ${esc(f.context.source)}</div></div>
           <a class="btn btn-sm btn-primary" href="${esc(addUrl)}" target="_blank" rel="noopener">Add</a></div></article>`).join("")}</div>
-          <p class="note">${icon("info")}<span>“Add” opens Home Assistant, where the new device is waiting under Discovered. Confirm it there; it then appears here under Recently added.</span></p>`
+          <p class="note">${icon("info")}<span>“Add” opens Home Assistant, where the new device is waiting under Discovered. Confirm it there; it then appears here under Needs a room.</span></p>`
         : '<p class="empty">Nothing waiting. Hue and Sonos devices appear by themselves; for Ring, Tuya, Alexa or Sonoff devices tap Scan for devices.</p>'}
-      <h2 class="section">Recently added · last 14 days</h2>
-      ${recent.length ? `<div class="grid g-2">${recent.map(d => `<article class="card">
-          <div class="card-head"><span class="ico">${icon(/hue|signify|philips/i.test(d.manufacturer || "") ? "bulb" : /sonos/i.test(d.manufacturer || "") ? "music" : "sensor")}</span>
-            <div class="grow"><h3>${esc(d.name_by_user || d.name || "New device")}</h3><div class="row-sub">${esc(brandOf(d))} · added ${ago(new Date(d.created_at * 1000).toISOString())}</div></div></div>
-          <div class="seg-row" style="margin-top:0;align-items:center">
-            <label class="row-sub" for="room-${d.id}">Room</label>
-            <select class="sel" id="room-${d.id}" data-room-for="${d.id}"><option value="">No room</option>${areas.map(a => `<option value="${esc(a.area_id)}" ${a.area_id === d.area_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>
-          </div>
-          <form class="jarvis-input" style="margin-top:10px" data-rename="${d.id}"><input type="text" id="name-${d.id}" value="${esc(d.name_by_user || d.name || "")}" aria-label="Name for ${esc(d.name || "device")}"><button class="btn btn-sm" type="submit">Rename</button></form>
-        </article>`).join("")}</div>` : '<p class="empty">No devices added in the last 14 days.</p>'}
+      <h2 class="section">Needs a room</h2>
+      ${g.needs.length ? `<div class="grid g-2">${g.needs.map(d => `<article class="card">
+          <div class="card-head"><span class="ico">${icoOf(d)}</span>
+            <div class="grow"><h3>${esc(g.label(d))}</h3><div class="row-sub">${esc(brandOf(d))} · added ${ago(new Date(d.created_at * 1000).toISOString())}</div></div></div>
+          <div class="seg-row" style="margin-top:0;align-items:center"><label class="row-sub" for="room-${d.id}">Room</label>${roomSel(d)}</div>
+          <form class="jarvis-input" style="margin-top:10px" data-rename="${d.id}"><input type="text" id="name-${d.id}" value="${esc(g.label(d))}" aria-label="Name for ${esc(d.name || "device")}"><button class="btn btn-sm" type="submit">Rename</button></form>
+        </article>`).join("")}</div>` : '<p class="empty">Nothing needs a room. New devices appear here until you choose one.</p>'}
+      <h2 class="section">Connected devices</h2>
+      ${g.connected.length ? `<div class="card">
+          <button class="btn" data-action="dev-toggle" aria-expanded="${devOpen}">${devOpen ? "Hide" : "Show"} ${g.connected.length} connected device${g.connected.length === 1 ? "" : "s"}</button>
+          ${devOpen ? g.connected.map(d => `<div class="row"><span class="ico">${icoOf(d)}</span>
+            <div class="row-body"><div class="row-title">${esc(g.label(d))}</div><div class="row-sub">${g.noRoom(d) && !d.area_id ? "Doesn't need a room" : esc(brandOf(d))}</div></div>
+            ${g.noRoom(d) && !d.area_id ? "" : roomSel(d)}</div>`).join("") : ""}
+        </div>` : '<p class="empty">Devices you\'ve put in a room appear here.</p>'}
       <h2 class="section">Adding something new</h2>
       <div class="card">
         <div class="row"><span class="ico" style="--tint:var(--sunset)">${icon("bulb")}</span><div class="row-body"><div class="row-title">Hue lights and sensors</div><div class="row-sub">Pair in the Philips Hue app (Settings → Lights or Accessories → Add). They appear here within a minute; then choose the room.</div></div></div>
@@ -2231,6 +2267,7 @@
     else if (a === "share-app") { ev.preventDefault(); shareApp(); }
     else if (a === "sfx-toggle") { ev.preventDefault(); sfxToggle(); }
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
+    else if (a === "dev-toggle") { ev.preventDefault(); devOpen = !devOpen; lastHtml = ""; render(false); }
     else if (a === "sys-details") { ev.preventDefault(); sysOpen = !sysOpen; try { localStorage.setItem("finca.sysOpen", sysOpen ? "1" : "0"); } catch { /* fine */ } lastHtml = ""; render(false); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
     else if (a === "close-nav") closeLayer();
