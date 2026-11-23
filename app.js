@@ -2313,9 +2313,8 @@
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
     setPlay("busy"); tvOffFor(where);
-    // stop Spotify on the TV first (one Spotify stream per account; the TV used to grab it from the Sonos)
-    group.then(() => store.mode === "demo" ? null : svc("script", "turn_on", {}, { entity_id: "script.finca_free_spotify" }).catch(() => null))
-      .then(() => new Promise(r => setTimeout(r, 800)))
+    // 23 Nov (owner): Spotify is signed out on the TV for good, so the old "stop Spotify on the TV first" step is gone.
+    group
       // 23 Nov: all together first; if Home Assistant refuses, try each speaker on its own so one awkward player
       // (e.g. the TV) can't stop the music everywhere else. Says which ones didn't join.
       .then(() => playEach(data, targets))
