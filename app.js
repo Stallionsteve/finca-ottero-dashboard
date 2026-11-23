@@ -2298,8 +2298,9 @@
     if (!ev.target.closest("[data-msplay]")) return;
     const typed = ($("#music-q") || {}).value; if (typed !== undefined && typed.trim() !== ms.q) { ms.q = typed.trim(); ms.sel = null; }
     const pick = ms.sel, q = pick ? pick.name : ms.q; if (!q) { toast("Search for something first"); $("#music-q") && $("#music-q").focus(); return; }
-    const where = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => b.dataset.spk);
+    let where = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => b.dataset.spk);
     if (!where.length) { toast("Pick at least one speaker first"); return; }
+    if (where.some(isS1) && where.some(e => !isS1(e))) { where = where.filter(e => !isS1(e)); setTimeout(() => toast(S1_NOTE), 3500); }
     mem.set("music.speakers", where.join(","));
     // Several speakers: join the Sonos ones into one group (in sync), the TV just plays alongside.
     // Only speakers that support grouping in Music Assistant can be joined (the bedroom DLNA renderers and the TV can't).
@@ -2370,6 +2371,7 @@
     });
     // S1 bedrooms: start the same song there through Music Assistant (then similar music), roughly in time, not perfectly synced
     const leadState = st(leadMa) || {}, now = (leadState.attributes || {}).media_content_id;
+    if (s1add.length && now) { toast(S1_NOTE); s1add.length = 0; }   // Music Assistant tracks are almost always Spotify ("library://…")
     if (s1add.length && now) playEach({ media_id: now, enqueue: "replace", radio_mode: true }, s1add)
       .then(r => { if (r.ok.length) toast(`${r.ok.map(nmOf).join(" and ")} playing too (separate Sonos S1 system)${r.bad.length ? `; ${r.bad.map(nmOf).join(" and ")} couldn't` : ""}`);
                    else toast(`${s1add.map(nmOf).join(" and ")} couldn't start`); }).catch(() => null);
@@ -2406,6 +2408,11 @@
   // 23 Nov (owner): music starts at 25% on the chosen speakers (no surprise 90% after a party); adjust afterwards.
   // The TV is left alone: music on the living room speakers simply takes over their sound.
   const START_VOL = 0.25;
+  // 23 Nov: the two bedroom speakers are on the older Sonos S1 system and can't join the others' group. With Spotify that
+  // would need a second stream, and Spotify allows one per account ("limit of 1 simultaneous streams"), so they're left out
+  // of Spotify music played elsewhere; on their own (or for radio) they work as normal.
+  const isS1 = e => /^media_player\.bedroom(_2)?_(sonos_|bedroom)/.test(e);
+  const S1_NOTE = "The bedroom speakers are on the older Sonos system, so they can't share Spotify with the others (one stream per account). Play them on their own, or use the radio.";
   const startVolume = list => svcEach("media_player", "volume_set", { volume_level: START_VOL }, list).catch(() => null);
   async function playEach(data, targets) {
     if (store.mode === "demo") { await svc("music_assistant", "play_media", data, { entity_id: targets }); return { ok: targets, bad: [] }; }
