@@ -2312,7 +2312,7 @@
       .then(j => { if (j && j.bad.length) targets = [...targets, ...j.bad]; });   // couldn't group: they get the music on their own
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
-    setPlay("busy");
+    setPlay("busy"); tvOffFor(where);
     // stop Spotify on the TV first (one Spotify stream per account; the TV used to grab it from the Sonos)
     group.then(() => store.mode === "demo" ? null : svc("script", "turn_on", {}, { entity_id: "script.finca_free_spotify" }).catch(() => null))
       .then(() => new Promise(r => setTimeout(r, 800)))
@@ -2332,7 +2332,7 @@
     document.querySelectorAll(".st-card.on").forEach(x => x.classList.remove("on")); f.classList.add("on");
     const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => SONOS_OF[b.dataset.spk]).filter(Boolean);
     if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
-    const lead = picked[0], fav = sel.value;
+    const lead = picked[0], fav = sel.value; tvOffFor(picked);
     const stale = ((st(lead) || { attributes: {} }).attributes.group_members || []).filter(e => e !== lead && !picked.includes(e));
     Promise.all(stale.map(e => svcEach("media_player", "unjoin", {}, [e]).catch(() => null)))
       .then(() => picked.length > 1 ? joinEach(lead, picked.slice(1)) : { ok: [], bad: [] })
@@ -2400,6 +2400,13 @@
     const ok_ = [], bad = [];
     for (const m of members) { try { await call([m]); ok_.push(m); } catch { bad.push(m); } }
     return { ok: ok_, bad };
+  }
+  // 23 Nov (owner): music in the living room means the TV goes off (only when the living room speakers are chosen).
+  const TV_POWER = "media_player.65pus8505_12";
+  function tvOffFor(list) {
+    if (!list.some(e => /^media_player\.tv_room(_tv_room)?$/.test(e))) return;
+    const tv = st(TV_POWER); if (!tv || ["off", "standby", "unavailable", "unknown"].includes(tv.state) || store.mode === "demo") return;
+    window.HAWS.callService(store.conn, "media_player", "turn_off", {}, { entity_id: TV_POWER }).catch(() => {});
   }
   async function playEach(data, targets) {
     if (store.mode === "demo") { await svc("music_assistant", "play_media", data, { entity_id: targets }); return { ok: targets, bad: [] }; }
