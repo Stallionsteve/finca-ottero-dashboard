@@ -1103,6 +1103,16 @@
 
   // Music search (14 Nov): type an artist/song/playlist, pick a speaker, play from Spotify via Music Assistant.
   // Sonos favourites (radio stations, playlists saved in the Sonos app) and how each Music Assistant speaker maps to its Sonos twin.
+  // 23 Nov (owner): the two bedroom speakers (older Sonos S1 system) are one "Bedroom" button, in its own row below the
+  // others; playing there always groups them (Sonos S1 grouping) and streams once to the first, so Spotify's one-stream
+  // limit is never hit.
+  function isS1(e) { return /^media_player\.bedroom(_2)?_(sonos_|bedroom)/.test(e); }
+  const BED_MA = "media_player.bedroom_sonos_connect_media_renderer", BED_MA2 = "media_player.bedroom_2_sonos_play_5_media_renderer";
+  const BED_SONOS = "media_player.bedroom_bedroom", BED_SONOS2 = "media_player.bedroom_2_bedroom_2";
+  async function bedroomTogether() {   // Bedroom 2 joins Bedroom (same S1 system); both at the start volume
+    await svcEach("media_player", "volume_set", { volume_level: START_VOL }, [BED_MA, BED_MA2]).catch(() => null);
+    if (st(BED_SONOS) && st(BED_SONOS2)) await joinEach(BED_SONOS, [BED_SONOS2]).catch(() => null);
+  }
   const SONOS_OF = { "media_player.tv_room": "media_player.tv_room_tv_room", "media_player.move_2": "media_player.move", "media_player.bar": "media_player.bar_bar",
     "media_player.bar_2": "media_player.bar_2_bar_2", "media_player.games_room": "media_player.games_room_games_room", "media_player.ganes_room2": "media_player.ganes_room2_ganes_room2",
     "media_player.bedroom_sonos_connect_media_renderer": "media_player.bedroom_bedroom", "media_player.bedroom_2_sonos_play_5_media_renderer": "media_player.bedroom_2_bedroom_2" };
@@ -1198,9 +1208,12 @@
         ${msResults()}
         ${libraryRow()}
         <div class="seg-row" id="music-where" role="group" aria-label="Speakers (pick one or more)" style="flex:1 1 100%;flex-wrap:wrap">
-          ${ma.map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
+          ${ma.filter(s => !isS1(s.entity_id)).map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
           <button type="button" class="seg-btn" data-spk-all="1">All speakers</button>
         </div>
+        ${ma.some(s => isS1(s.entity_id)) || store.mode === "demo" ? `<div class="seg-row" role="group" aria-label="Bedroom speakers" style="flex:1 1 100%;flex-wrap:wrap;margin-top:-2px">
+          <button type="button" class="seg-btn" data-spk="${BED_MA}" data-bed="1" aria-pressed="${picked.includes(BED_MA)}">${icon("moon").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"')}Bedroom · both speakers</button>
+        </div>` : ""}
         <div class="ms-play"><button class="btn btn-primary play-btn ${ms.play || ""}" type="button" data-msplay="1" aria-live="polite" ${ms.play === "busy" ? "disabled" : ""}>${
             ms.play === "busy" ? '<span class="spin" aria-hidden="true"></span>Starting…' : ms.play === "ok" ? `${icon("check")}Playing` : ms.play === "fail" ? "Didn't play" : `${icon("music")}Play`}</button>
           <span class="row-sub">${ms.sel ? `Selected: <b style="color:var(--sand)">${esc(/^liked songs/i.test(ms.sel.name) ? "Liked Songs (shuffled)" : ms.sel.name.trim())}</b>` : ms.q ? `Plays “${esc(ms.q)}”` : "Search, pick a result, choose speakers, play"}</span></div>
@@ -2298,7 +2311,7 @@
     if (!ev.target.closest("[data-msplay]")) return;
     const typed = ($("#music-q") || {}).value; if (typed !== undefined && typed.trim() !== ms.q) { ms.q = typed.trim(); ms.sel = null; }
     const pick = ms.sel, q = pick ? pick.name : ms.q; if (!q) { toast("Search for something first"); $("#music-q") && $("#music-q").focus(); return; }
-    let where = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => b.dataset.spk);
+    let where = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"], [data-bed][aria-pressed="true"]')].map(b => b.dataset.spk);
     if (!where.length) { toast("Pick at least one speaker first"); return; }
     if (where.some(isS1) && where.some(e => !isS1(e))) { where = where.filter(e => !isS1(e)); setTimeout(() => toast(S1_NOTE), 3500); }
     mem.set("music.speakers", where.join(","));
@@ -2309,7 +2322,9 @@
     // First drop any speaker left in the lead's group from last time that isn't picked now.
     const stale = (((store.states[lead] || {}).attributes || {}).group_members || []).filter(e => e !== lead && !where.includes(e));
     let targets = sonos.length > 1 ? [lead, ...others] : where;
-    const vol = startVolume(where);
+    const bedOnly = where.length && where.every(isS1);
+    if (bedOnly) targets = [BED_MA];
+    const vol = bedOnly ? bedroomTogether() : startVolume(where);
     const group = Promise.all(stale.map(e => svcEach("media_player", "unjoin", {}, [e]).catch(() => null)))
       .then(() => sonos.length > 1 ? joinEach(lead, sonos.slice(1)) : null)
       .then(j => { if (j && j.bad.length) targets = [...targets, ...j.bad]; });   // couldn't group: they get the music on their own
@@ -2332,7 +2347,9 @@
     const f = ev.target.closest("[data-favplay]"); if (!f) return;
     const sel = { value: f.dataset.favplay };
     document.querySelectorAll(".st-card.on").forEach(x => x.classList.remove("on")); f.classList.add("on");
-    const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"]')].map(b => SONOS_OF[b.dataset.spk]).filter(Boolean);
+    const picked = [...document.querySelectorAll('#music-where [data-spk][aria-pressed="true"], [data-bed][aria-pressed="true"]')].map(b => b.dataset.bed ? BED_SONOS : SONOS_OF[b.dataset.spk]).filter(Boolean);
+    if (picked.includes(BED_SONOS) && picked.some(e => e !== BED_SONOS)) { picked.splice(picked.indexOf(BED_SONOS), 1); toast(S1_NOTE.replace("share Spotify", "share a station")); }
+    if (picked.length === 1 && picked[0] === BED_SONOS && st(BED_SONOS2)) picked.push(BED_SONOS2);   // both bedroom speakers
     if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
     const lead = picked[0], fav = sel.value;
     const stale = ((st(lead) || { attributes: {} }).attributes.group_members || []).filter(e => e !== lead && !picked.includes(e));
@@ -2344,11 +2361,11 @@
       .catch(() => null);
   });
   document.addEventListener("click", ev => {
-    const b = ev.target.closest("#music-where [data-spk], #music-where [data-spk-all]"); if (!b) return;
+    const b = ev.target.closest("#music-where [data-spk], #music-where [data-spk-all], [data-bed]"); if (!b) return;
     const btns = [...document.querySelectorAll("#music-where [data-spk]")];
     if (b.dataset.spkAll) { const allOn = btns.every(x => x.getAttribute("aria-pressed") === "true"); btns.forEach(x => x.setAttribute("aria-pressed", String(!allOn))); }
     else b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
-    mem.set("music.speakers", btns.filter(x => x.getAttribute("aria-pressed") === "true").map(x => x.dataset.spk).join(","));
+    mem.set("music.speakers", [...btns, ...document.querySelectorAll("[data-bed]")].filter(x => x.getAttribute("aria-pressed") === "true").map(x => x.dataset.spk).join(","));
     liveRegroup(b.dataset.spkAll ? btns : [b]);
   });
   // Music already playing (15 Nov): tapping a speaker on joins it to what's playing straight away; tapping off takes it out.
@@ -2411,7 +2428,7 @@
   // 23 Nov: the two bedroom speakers are on the older Sonos S1 system and can't join the others' group. With Spotify that
   // would need a second stream, and Spotify allows one per account ("limit of 1 simultaneous streams"), so they're left out
   // of Spotify music played elsewhere; on their own (or for radio) they work as normal.
-  const isS1 = e => /^media_player\.bedroom(_2)?_(sonos_|bedroom)/.test(e);
+  // (isS1 / BED_* are defined near the speaker list)
   const S1_NOTE = "The bedroom speakers are on the older Sonos system, so they can't share Spotify with the others (one stream per account). Play them on their own, or use the radio.";
   const startVolume = list => svcEach("media_player", "volume_set", { volume_level: START_VOL }, list).catch(() => null);
   async function playEach(data, targets) {
