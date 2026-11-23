@@ -693,7 +693,7 @@
     return `<article class="card group ${anyOn ? "is-on" : ""}">
       <div class="card-head">
         <span class="ico" style="--tint:var(--sunset)">${icon("bulb")}</span>
-        <div class="grow"><h3>${esc(b.name)}</h3><div class="row-sub">${members.length} light${members.length === 1 ? "" : "s"} · ${onCount} on</div></div>
+        <div class="grow"><h3>${esc(b.name)}</h3><div class="row-sub">${members.length} light${members.length === 1 ? "" : "s"} · ${onCount} on${(() => { const n = members.filter(x => !ok(x)).length; return n ? ` · ${n === members.length ? "all" : n} off at the wall switch?` : ""; })()}</div></div>
         ${[b.group, ...members].some(x => x && (hasColour(x) || hasWhiteTemp(x))) ? `<button class="round-btn colour-btn" data-colour="${esc(b.name)}" aria-label="${esc(b.name)} colour"><span class="swatch" style="background:${swatchOf(b.group || members.find(x => x.state === "on") || members[0])}"></span></button>` : ""}
         <button class="switch" role="switch" aria-checked="${anyOn}" aria-label="${esc(b.name)} lights" data-area="${esc(ids)}" data-room="${esc(b.name)}" style="--tint:var(--sunset)"></button>
       </div>
@@ -701,7 +701,7 @@
         <input type="range" id="bri-${esc(b.name.replace(/\W/g, ""))}" min="1" max="100" value="${bri || 50}" style="--val:${bri || 50}%" data-bri="${esc(ids)}" aria-label="${esc(b.name)} brightness" ${anyOn ? "" : "disabled"}>
         <span class="v">${anyOn ? bri + "%" : "Off"}</span></div>` : ""}
       ${sceneChips(b)}
-      ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" ${ok(s) ? "" : "disabled"} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
+      ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" ${ok(s) ? "" : 'disabled title="No power: probably switched off at the wall"'} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
     </article>`;
   }
   // 22 Nov (owner): Hue scenes for each room, pulled live from Home Assistant (scene.* in the same area). The active one
@@ -1733,7 +1733,7 @@
     const offlineByDevice = new Map();
     states.filter(s => s.state === "unavailable" && ["sensor", "binary_sensor", "camera", "light", "switch", "alarm_control_panel", "siren", "lock"].includes(domainOf(s.entity_id)))
       .filter(s => !HEALTH_SKIP.test(nm(s) + " " + s.entity_id + " " + devName(s)) && !isHidden(s) && !["alexa_devices", "alexa_media", "mobile_app"].includes(platformOf(s.entity_id)))
-      .forEach(s => { const name = devName(s).trim(); if (!offlineByDevice.has(name)) offlineByDevice.set(name, { name, area: areaOf(s.entity_id), since: s.last_changed }); });
+      .forEach(s => { const name = devName(s).trim(); if (!offlineByDevice.has(name)) offlineByDevice.set(name, { name, area: areaOf(s.entity_id), since: s.last_changed, light: domainOf(s.entity_id) === "light" }); });
     return { batteries, low: batteries.filter(b => b.v !== null && b.v <= 25), offline: [...offlineByDevice.values()].sort((a, b) => a.name.localeCompare(b.name)) };
   }
   // Home Assistant's own health (14 Nov): System Monitor readings; one tap switches the useful ones on.
@@ -1819,7 +1819,7 @@
         <article class="card"><div class="card-head"><span class="ico">${icon("battery")}</span><div class="grow"><h3>Low batteries</h3><div class="row-sub">25 % or less</div></div></div>
           ${h.low.length ? h.low.map(b => row(b.name, esc(b.area || ""), `${Math.round(b.v)}%`, true)).join("") : '<p class="note">All batteries are fine.</p>'}</article>
         <article class="card"><div class="card-head"><span class="ico">${icon("wifi")}</span><div class="grow"><h3>Offline or unplugged</h3><div class="row-sub">Sensors, cameras, alarm and lights</div></div></div>
-          ${h.offline.length ? h.offline.map(o => row(o.name, `${esc(o.area || "")}${o.area ? " · " : ""}since ${ago(o.since)}`, "Offline", true)).join("") : '<p class="note">Everything is online.</p>'}</article>
+          ${h.offline.length ? h.offline.map(o => row(o.name, `${esc(o.area || "")}${o.area ? " · " : ""}since ${ago(o.since)}${o.light ? " · probably switched off at the wall" : ""}`, o.light ? "No power" : "Offline", true)).join("") : '<p class="note">Everything is online.</p>'}</article>
       </div>
       ${sysHealthCard()}
       ${recoveryCard()}
