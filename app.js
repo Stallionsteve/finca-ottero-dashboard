@@ -165,6 +165,7 @@
   const spkRank = e => { const k = String(e).replace(/^media_player\./, "").replace(/_(tv_room|bar|bar_2|games_room|ganes_room2|bedroom|bedroom_2)$/, "")
       .replace(/_sonos_.*$/, "").replace(/^move_2$/, "move"); const i = SPK_ORDER.indexOf(k); return i < 0 ? 50 : i; };
   const ok = s => !!s && s.state !== "unavailable" && s.state !== "unknown";
+  const sirOf = () => /^holl/i.test(((store.me || {}).name || "").trim()) ? "ma'am" : "sir";
   const num = id => { const s = st(id); if (!ok(s)) return null; const v = parseFloat(s.state); return Number.isFinite(v) ? v : null; };
   const isHidden = s => C.hide.some(r => r.test(s.entity_id) || r.test(nm(s)));
   const all = dom => Object.values(store.states).filter(s => domainOf(s.entity_id) === dom && !isHidden(s));
@@ -586,7 +587,7 @@
     const lines = ["All systems online.", "Systems nominal. The house behaved itself.", "Online and at your service.", "Diagnostics complete. Nothing is on fire."];
     const el = document.createElement("div"); el.className = "jboot"; el.setAttribute("role", "status");
     el.innerHTML = `<div class="jboot-ring"><span></span><span></span><span></span><b>JARVIS</b></div>
-      <p class="jboot-hi">Good ${part}, sir.</p><p class="jboot-sub">${lines[Math.floor(Math.random() * lines.length)]}</p>
+      <p class="jboot-hi">Good ${part}, ${sirOf()}.</p><p class="jboot-sub">${lines[Math.floor(Math.random() * lines.length)]}</p>
       ${bits.length ? `<p class="jboot-st">${bits.map(esc).join(" · ")}</p>` : ""}`;
     const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 450); };
     el.addEventListener("click", close); document.body.appendChild(el); setTimeout(close, 2300);
@@ -2122,7 +2123,7 @@
     let stream = J.mic && J.mic.getTracks().some(t => t.readyState === "live") ? J.mic : null;
     if (!stream) {
       try { stream = J.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-      catch { addMsg("sys", "Microphone permission was declined."); if (hud.on) { hud.say("I need the microphone for that, sir."); hud.close(2500); } return; }
+      catch { addMsg("sys", "Microphone permission was declined."); if (hud.on) { hud.say(`I need the microphone for that, ${sirOf()}.`); hud.close(2500); } return; }
     }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(stream);
@@ -2179,7 +2180,7 @@
     stop(); clearTimeout(quietT);
     if (followUp && (J.followSilent || J.dismissed || !heardSomething || /didn't catch that/i.test(speech))) {
       const bye = J.dismissed; J.followSilent = false; J.dismissed = false;
-      if (hud.on) { if (bye) { hud.say("Very good, sir."); hud.close(900); } else hud.close(0); } return; }
+      if (hud.on) { if (bye) { hud.say(`Very good, ${sirOf()}.`); hud.close(900); } else hud.close(0); } return; }
     J.followSilent = false;
     await deliver(speech, url);
   }
@@ -2544,6 +2545,8 @@
   async function startWith(conn) {
     const H = window.HAWS;
     store.conn = conn; store.online = true;
+    // 23 Nov (owner): Jarvis calls Hollie "ma'am" when she uses her own login; everyone else stays "sir".
+    conn.sendMessagePromise({ type: "auth/current_user" }).then(u => { store.me = u || null; }).catch(() => {});
     conn.addEventListener("ready", () => { store.online = true; scheduleRender(); });
     conn.addEventListener("disconnected", () => { store.online = false; scheduleRender(); });
     const reg = async (type, key) => { try { return await conn.sendMessagePromise({ type }); } catch { return []; } };
