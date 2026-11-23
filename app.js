@@ -755,7 +755,7 @@
         const dx = ev.clientX - box.left - r, dy = ev.clientY - box.top - r;
         const h = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360, sat = Math.min(1, Math.hypot(dx, dy) / r);
         place(h, sat);
-        if (send) svc("light", "turn_on", { hs_color: [Math.round(h), Math.round(sat * 100)] }, { entity_id: $("#ctarget").value.split(",") });
+        if (send) svcEach("light", "turn_on", { hs_color: [Math.round(h), Math.round(sat * 100)] }, $("#ctarget").value.split(","), "colour");
       };
       let down = false;
       wheel.addEventListener("pointerdown", ev => { down = true; wheel.setPointerCapture(ev.pointerId); pick(ev, false); });
@@ -763,7 +763,7 @@
       wheel.addEventListener("pointerup", ev => { if (down) { down = false; pick(ev, true); } });
     }
     const t = $("#ctemp");
-    if (t) t.addEventListener("change", () => svc("light", "turn_on", { color_temp_kelvin: +t.value }, { entity_id: $("#ctarget").value.split(",") }));
+    if (t) t.addEventListener("change", () => svcEach("light", "turn_on", { color_temp_kelvin: +t.value }, $("#ctarget").value.split(","), "white"));
   }
 
   function viewLighting() {
@@ -2172,7 +2172,7 @@
       return;
     }
     if (d.scene) { svc("scene", "turn_on", {}, { entity_id: d.scene }).catch(() => {}); return; }
-    if (d.area) { const ids = d.area.split(","); const on = t.getAttribute("aria-checked") === "true"; svc("light", on ? "turn_off" : "turn_on", {}, { entity_id: ids }); return; }
+    if (d.area) { const ids = d.area.split(","); const on = t.getAttribute("aria-checked") === "true"; svcEach("light", on ? "turn_off" : "turn_on", {}, ids, d.room || ""); return; }
     if (d.temp) { const s = st(d.temp); svc("climate", "set_temperature", { temperature: Math.round((s.attributes.temperature + parseFloat(d.delta)) * 10) / 10 }, { entity_id: d.temp }); return; }
     if (d.hvac) { svc("climate", "set_hvac_mode", { hvac_mode: d.mode }, { entity_id: d.hvac }); return; }
     if (d.fan) { svc("climate", "set_fan_mode", { fan_mode: d.mode }, { entity_id: d.fan }); return; }
@@ -2218,7 +2218,7 @@
     else if (a === "intruder-stop") { svc("script", "turn_on", {}, { entity_id: "script.finca_intruder_stop" }).then(() => toast("Stopping. Speakers and lights go back to how they were.")).catch(() => {}); }
     else if (a === "scan") scanDevices(true);
     else if (a === "all-off") allOffSheet();
-    else if (a === "all-off-go") { closeLayer(); svc("light", "turn_off", {}, { entity_id: realLights().filter(s => s.state === "on").map(s => s.entity_id) }); }
+    else if (a === "all-off-go") { closeLayer(); svcEach("light", "turn_off", {}, realLights().filter(s => s.state === "on").map(s => s.entity_id), "all lights off"); }
     else if (a === "victron-lock") {
       // hide every Victron control (switch/number/select/button) from Assist so Jarvis can't change them; sensors stay visible
       const ids = Object.values(store.ents).filter(e => e.platform === "victron_gx" && /^(switch|number|select|button)\./.test(e.entity_id)).map(e => e.entity_id);
@@ -2269,9 +2269,10 @@
     const others = where.filter(e => e !== lead && !sonos.includes(e));
     // First drop any speaker left in the lead's group from last time that isn't picked now.
     const stale = (((store.states[lead] || {}).attributes || {}).group_members || []).filter(e => e !== lead && !where.includes(e));
-    const group = Promise.all(stale.map(e => svc("media_player", "unjoin", {}, { entity_id: e }).catch(() => null)))
-      .then(() => sonos.length > 1 ? svc("media_player", "join", { group_members: sonos.slice(1) }, { entity_id: lead }).catch(() => null) : null);
-    const targets = sonos.length > 1 ? [lead, ...others] : where;
+    let targets = sonos.length > 1 ? [lead, ...others] : where;
+    const group = Promise.all(stale.map(e => svcEach("media_player", "unjoin", {}, [e]).catch(() => null)))
+      .then(() => sonos.length > 1 ? joinEach(lead, sonos.slice(1)) : null)
+      .then(j => { if (j && j.bad.length) targets = [...targets, ...j.bad]; });   // couldn't group: they get the music on their own
     const data = pick ? { media_id: pick.uri, media_type: pick.media_type || ({ Artist: "artist", Album: "album", Playlist: "playlist", Song: "track" })[pick.kind], enqueue: "replace", radio_mode: pick.kind === "Song" || pick.kind === "Artist" }
                       : { media_id: q, enqueue: "replace", radio_mode: true };
     setPlay("busy");
@@ -2296,10 +2297,11 @@
     if (!picked.length) { toast("Pick at least one Sonos speaker above first"); return; }
     const lead = picked[0], fav = sel.value;
     const stale = ((st(lead) || { attributes: {} }).attributes.group_members || []).filter(e => e !== lead && !picked.includes(e));
-    Promise.all(stale.map(e => svc("media_player", "unjoin", {}, { entity_id: e }).catch(() => null)))
-      .then(() => picked.length > 1 ? svc("media_player", "join", { group_members: picked.slice(1) }, { entity_id: lead }).catch(() => null) : null)
-      .then(() => svc("media_player", "select_source", { source: fav }, { entity_id: lead }))
-      .then(() => toast(`Playing ${fav}${picked.length > 1 ? ` on ${picked.length} speakers` : ""}`)).catch(() => null);
+    Promise.all(stale.map(e => svcEach("media_player", "unjoin", {}, [e]).catch(() => null)))
+      .then(() => picked.length > 1 ? joinEach(lead, picked.slice(1)) : { ok: [], bad: [] })
+      .then(j => svcEach("media_player", "select_source", { source: fav }, [lead, ...((j && j.bad) || [])], fav)
+        .then(r => { if (r.ok.length) toast(`Playing ${fav}${picked.length > 1 ? ` on ${r.ok.length + ((j && j.ok.length) || 0)} speaker${r.ok.length + ((j && j.ok.length) || 0) === 1 ? "" : "s"}` : ""}`); }))
+      .catch(() => null);
   });
   document.addEventListener("click", ev => {
     const b = ev.target.closest("#music-where [data-spk], #music-where [data-spk-all]"); if (!b) return;
@@ -2329,12 +2331,38 @@
     });
     // S1 bedrooms: start the same song there through Music Assistant (then similar music), roughly in time, not perfectly synced
     const leadState = st(leadMa) || {}, now = (leadState.attributes || {}).media_content_id;
-    if (s1add.length && now) svc("music_assistant", "play_media", { media_id: now, enqueue: "replace", radio_mode: true }, { entity_id: s1add })
-      .then(() => toast(`${s1add.map(nmOf).join(" and ")} playing too (separate Sonos S1 system)`)).catch(() => null);
-    if (s1drop.length) svc("media_player", "media_pause", {}, { entity_id: s1drop }).catch(() => null);
-    if (add.length) svc("media_player", "join", { group_members: [...new Set(add)] }, { entity_id: lead })
-      .then(() => toast(add.length === 1 ? `${nmOf(add[0])} joined the music` : `${add.length} speakers joined the music`)).catch(() => null);
-    if (drop.length) svc("media_player", "unjoin", {}, { entity_id: drop }).then(() => toast(drop.length === 1 ? `${nmOf(drop[0])} left the music` : `${drop.length} speakers left the music`)).catch(() => null);
+    if (s1add.length && now) playEach({ media_id: now, enqueue: "replace", radio_mode: true }, s1add)
+      .then(r => { if (r.ok.length) toast(`${r.ok.map(nmOf).join(" and ")} playing too (separate Sonos S1 system)${r.bad.length ? `; ${r.bad.map(nmOf).join(" and ")} couldn't` : ""}`);
+                   else toast(`${s1add.map(nmOf).join(" and ")} couldn't start`); }).catch(() => null);
+    if (s1drop.length) svcEach("media_player", "media_pause", {}, s1drop).catch(() => null);
+    if (add.length) joinEach(lead, add)
+      .then(r => toast(r.bad.length ? `${r.ok.length ? r.ok.map(nmOf).join(" and ") + " joined; " : ""}${r.bad.map(nmOf).join(" and ")} couldn't join` :
+                       r.ok.length === 1 ? `${nmOf(r.ok[0])} joined the music` : `${r.ok.length} speakers joined the music`)).catch(() => null);
+    if (drop.length) svcEach("media_player", "unjoin", {}, drop).then(r => { if (r.ok.length) toast(r.ok.length === 1 ? `${nmOf(r.ok[0])} left the music` : `${r.ok.length} speakers left the music`); }).catch(() => null);
+  }
+  // 23 Nov (owner: "any other conflicts?"): one awkward device must never stop a command for all the others.
+  // Try all together; if Home Assistant refuses, do each on its own and report only the ones that failed (by name).
+  async function svcEach(domain, service, data, ids, what = "") {
+    ids = [...new Set([].concat(ids))].filter(Boolean); if (!ids.length) return { ok: [], bad: [] };
+    if (store.mode === "demo") { await svc(domain, service, data, { entity_id: ids }); return { ok: ids, bad: [] }; }
+    const call = list => window.HAWS.callService(store.conn, domain, service, data, { entity_id: list });
+    try { await call(ids); return { ok: ids, bad: [] }; } catch { /* one at a time below */ }
+    await new Promise(r => setTimeout(r, 600));
+    const ok_ = [], bad = [];
+    for (const id of ids) { try { await call([id]); ok_.push(id); } catch { bad.push(id); } }
+    if (bad.length) { const names = bad.map(e => st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
+      toast(`${names.slice(0, 3).join(", ")}${names.length > 3 ? ` and ${names.length - 3} more` : ""} didn't respond${what ? " (" + what + ")" : ""}${ok_.length ? "; the rest worked" : ""}.`); }
+    return { ok: ok_, bad };
+  }
+  // Sonos grouping, one speaker at a time if the whole group is refused (e.g. one speaker unplugged).
+  async function joinEach(lead, members) {
+    members = [...new Set(members)].filter(e => e && e !== lead); if (!members.length) return { ok: [], bad: [] };
+    if (store.mode === "demo") return { ok: members, bad: [] };
+    const call = list => window.HAWS.callService(store.conn, "media_player", "join", { group_members: list }, { entity_id: lead });
+    try { await call(members); return { ok: members, bad: [] }; } catch { /* one at a time */ }
+    const ok_ = [], bad = [];
+    for (const m of members) { try { await call([m]); ok_.push(m); } catch { bad.push(m); } }
+    return { ok: ok_, bad };
   }
   async function playEach(data, targets) {
     if (store.mode === "demo") { await svc("music_assistant", "play_media", data, { entity_id: targets }); return { ok: targets, bad: [] }; }
