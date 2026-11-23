@@ -1175,7 +1175,10 @@
     ms.busy = false; lastHtml = ""; render(false);
   }
   function musicSearch() {
-    const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s)));
+    // 23 Nov: only players that can take a Music Assistant queue right now (the TV's player sometimes can't, and one
+    // such player made Home Assistant refuse the whole play request).
+    const ma = all("media_player").filter(s => platformOf(s.entity_id) === "music_assistant" && ok(s) && !/sendspin|pwa|safari/i.test(nm(s))
+      && (store.mode === "demo" || ((s.attributes.supported_features || 0) & 2097152)));
     if (!ma.length && store.mode !== "demo") return "";
     // Pick one or several speakers (14 Nov): tap to add or remove; several are grouped so they play in sync.
     const picked = String(mem.get("music.speakers", mem.get("music.speaker", "media_player.tv_room"))).split(",").filter(Boolean);
@@ -2275,9 +2278,14 @@
     // stop Spotify on the TV first (one Spotify stream per account; the TV used to grab it from the Sonos)
     group.then(() => store.mode === "demo" ? null : svc("script", "turn_on", {}, { entity_id: "script.finca_free_spotify" }).catch(() => null))
       .then(() => new Promise(r => setTimeout(r, 800)))
-      .then(() => svc("music_assistant", "play_media", data, { entity_id: targets }))
-      .then(() => pick && /^liked songs/i.test(pick.name) ? svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: targets[0] }).catch(() => null) : null)
-      .then(() => { setPlay("ok", 3000); toast(`Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
+      // 23 Nov: all together first; if Home Assistant refuses, try each speaker on its own so one awkward player
+      // (e.g. the TV) can't stop the music everywhere else. Says which ones didn't join.
+      .then(() => playEach(data, targets))
+      .then(res => { const playing = res.ok.length;
+        if (!playing) throw new Error("none");
+        if (pick && /^liked songs/i.test(pick.name)) svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: res.ok[0] }).catch(() => null);
+        setPlay("ok", 3000);
+        toast(res.bad.length ? `Playing ${q}. ${res.bad.map(nmOf).join(" and ")} couldn't join.` : `Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
       .catch(() => { setPlay("fail", 3500); toast(`Couldn't play "${q}". Spotify may be busy; try again in a minute.`); });
   });
   document.addEventListener("click", ev => {
@@ -2327,6 +2335,14 @@
     if (add.length) svc("media_player", "join", { group_members: [...new Set(add)] }, { entity_id: lead })
       .then(() => toast(add.length === 1 ? `${nmOf(add[0])} joined the music` : `${add.length} speakers joined the music`)).catch(() => null);
     if (drop.length) svc("media_player", "unjoin", {}, { entity_id: drop }).then(() => toast(drop.length === 1 ? `${nmOf(drop[0])} left the music` : `${drop.length} speakers left the music`)).catch(() => null);
+  }
+  async function playEach(data, targets) {
+    if (store.mode === "demo") { await svc("music_assistant", "play_media", data, { entity_id: targets }); return { ok: targets, bad: [] }; }
+    const call = list => window.HAWS.callService(store.conn, "music_assistant", "play_media", data, { entity_id: list });
+    try { await call(targets); return { ok: targets, bad: [] }; } catch { /* one by one below */ }
+    const ok_ = [], bad = [];
+    for (const t of targets) { try { await call([t]); ok_.push(t); } catch { bad.push(t); } }
+    return { ok: ok_, bad };
   }
   const nmOf = e => /^media_player\.tv_room(_tv_room)?$/.test(e) ? "Living room" : (st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
   document.addEventListener("toggle", ev => { if (ev.target.classList && ev.target.classList.contains("st-pick")) mem.set("st.open", ev.target.open ? "1" : ""); }, true);
