@@ -1118,11 +1118,14 @@
   // the tablet) silences the tablet just while Jarvis answers, reads his reply from Home Assistant and speaks it on the
   // chosen Sonos. Phones and iPads are unaffected. If anything fails, the tablet's own voice is restored.
   const IS_WALL_TABLET = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent);
+  // 24 Nov (owner): the wall tablet's permanent reply speaker is the living room set (the Era 300 under it is its rear-left
+  // speaker, which Sonos only plays as part of the set). Phones and iPads reply on themselves unless changed.
+  function defaultReply() { return /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) && store.states["media_player.tv_room_tv_room"] ? "media_player.tv_room_tv_room" : "device"; }
   const SAT = "assist_satellite.android_voice_assistant_assist_satellite", SAT_MP = "media_player.android_voice_assistant_media_player";
   const relay = { last: "", muted: false, prevVol: 1, runDone: "" };
   function tabletRelay() {
     if (!IS_WALL_TABLET || store.mode === "demo" || !store.conn) return;
-    const reply = mem.get("jarvis.reply", "device"), sat = st(SAT); if (!sat) return;
+    const reply = mem.get("jarvis.reply", defaultReply()), sat = st(SAT); if (!sat) return;
     const state = sat.state, was = relay.last; relay.last = state;
     if (state === was) return;
     const toSpeaker = /^media_player\./.test(reply) && st(reply) && ok(st(reply));
@@ -1930,7 +1933,7 @@
   }
   function speakers() { return all("media_player").filter(s => platformOf(s.entity_id) === "sonos" || /sonos/i.test(nm(s))); }
   function openJarvis() {
-    const reply = mem.get("jarvis.reply", "device");
+    const reply = mem.get("jarvis.reply", defaultReply());
     sheet(`<div class="jarvis">
       <div class="card-head" style="margin:0"><span class="ico">${icon("mic")}</span><div class="grow"><h3 style="font-family:var(--font-display);letter-spacing:.2em">JARVIS</h3><div class="row-sub">House manager</div></div>
         <button class="btn btn-sm btn-ghost" data-action="close" aria-label="Close Jarvis">Close</button></div>
@@ -2071,7 +2074,7 @@
     if (J.mic) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; clearTimeout(J.micRelease); }
   }
   function toMic() { if (isIOS) { try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch { /* older iOS */ } } }
-  const jReply = () => ($("#jreply") ? $("#jreply").value : mem.get("jarvis.reply", "device"));
+  const jReply = () => ($("#jreply") ? $("#jreply").value : mem.get("jarvis.reply", defaultReply()));
   // ---------- Voice HUD (15 Nov): tap the Jarvis button → listens straight away in a holographic overlay, answers aloud,
   // then folds back into the button. Press and hold the button (or More → Jarvis) for the typing window + "Reply through".
   const hud = {
