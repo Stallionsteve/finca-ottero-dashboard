@@ -1113,6 +1113,42 @@
     await svcEach("media_player", "volume_set", { volume_level: START_VOL }, [BED_MA, BED_MA2]).catch(() => null);
     if (st(BED_SONOS) && st(BED_SONOS2)) await joinEach(BED_SONOS, [BED_SONOS2]).catch(() => null);
   }
+  // 24 Nov (owner): on the wall tablet, "Hey Jarvis" / "Okay Computer" replies go to the speaker chosen under "Reply
+  // through" (kept until changed). The tablet's voice assistant can't send its voice elsewhere, so this app (always open on
+  // the tablet) silences the tablet just while Jarvis answers, reads his reply from Home Assistant and speaks it on the
+  // chosen Sonos. Phones and iPads are unaffected. If anything fails, the tablet's own voice is restored.
+  const IS_WALL_TABLET = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent);
+  const SAT = "assist_satellite.android_voice_assistant_assist_satellite", SAT_MP = "media_player.android_voice_assistant_media_player";
+  const relay = { last: "", muted: false, prevVol: 1, runDone: "" };
+  function tabletRelay() {
+    if (!IS_WALL_TABLET || store.mode === "demo" || !store.conn) return;
+    const reply = mem.get("jarvis.reply", "device"), sat = st(SAT); if (!sat) return;
+    const state = sat.state, was = relay.last; relay.last = state;
+    if (state === was) return;
+    const toSpeaker = /^media_player\./.test(reply) && st(reply) && ok(st(reply));
+    const quiet = v => window.HAWS.callService(store.conn, "media_player", "volume_set", { volume_level: v }, { entity_id: SAT_MP }).catch(() => {});
+    if (state === "processing" && toSpeaker) {          // he's about to answer: silence the tablet's own voice
+      const mp = st(SAT_MP); relay.prevVol = mp && typeof mp.attributes.volume_level === "number" && mp.attributes.volume_level > 0 ? mp.attributes.volume_level : 1;
+      relay.muted = true; quiet(0);
+    } else if (state === "responding" && relay.muted) {  // his words: speak them on the chosen speaker
+      relayReply(reply).catch(() => { quiet(relay.prevVol); relay.muted = false; });
+    } else if (state === "idle" && relay.muted) {
+      setTimeout(() => { if (relay.muted && (st(SAT) || {}).state === "idle") { quiet(relay.prevVol); relay.muted = false; } }, 1500);
+    }
+  }
+  async function relayReply(speaker) {
+    const pipeName = (st("select.android_voice_assistant_assistant") || {}).state;
+    const pl = (store.pipelines || []).find(p => p.name === pipeName) || (store.pipelines || []).find(p => p.id === store.preferredPipeline);
+    if (!pl) throw new Error("no pipeline");
+    const runs = (await store.conn.sendMessagePromise({ type: "assist_pipeline/pipeline_debug/list", pipeline_id: pl.id })).pipeline_runs || [];
+    const run = runs.sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp))).pop(); if (!run || run.pipeline_run_id === relay.runDone) throw new Error("no new run");
+    const dbg = await store.conn.sendMessagePromise({ type: "assist_pipeline/pipeline_debug/get", pipeline_id: pl.id, pipeline_run_id: run.pipeline_run_id });
+    const end = (dbg.events || []).filter(e => e.type === "intent-end").pop();
+    const speech = end && end.data && end.data.intent_output && (((end.data.intent_output.response || {}).speech || {}).plain || {}).speech;
+    if (!speech) throw new Error("no reply text");
+    relay.runDone = run.pipeline_run_id;
+    await window.HAWS.callService(store.conn, "script", "turn_on", { variables: { message: speech, speaker, voice: pl.tts_voice || "ballad" } }, { entity_id: C.jarvis.sayScript });
+  }
   const SONOS_OF = { "media_player.tv_room": "media_player.tv_room_tv_room", "media_player.move_2": "media_player.move", "media_player.bar": "media_player.bar_bar",
     "media_player.bar_2": "media_player.bar_2_bar_2", "media_player.games_room": "media_player.games_room_games_room", "media_player.ganes_room2": "media_player.ganes_room2_ganes_room2",
     "media_player.bedroom_sonos_connect_media_renderer": "media_player.bedroom_bedroom", "media_player.bedroom_2_sonos_play_5_media_renderer": "media_player.bedroom_2_bedroom_2" };
@@ -2607,7 +2643,7 @@
       else render(true);
       if (d.sheet === "weather") setTimeout(() => { wx.sheet = true; sheet(weatherCard(true) || '<p>Loading the forecast…</p>', true); }, 350);
     }, { type: "subscribe_events", event_type: "finca_show_page" }).then(() => { J.pageSub = true; }).catch(() => { J.pageSub = false; });
-    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
+    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); try { tabletRelay(); } catch { /* never block updates */ } if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }
 
   // "System at work" background layer (15 Nov): drawn once, animated by CSS only (cheap for the phone).
