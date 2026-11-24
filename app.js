@@ -511,16 +511,19 @@
     loadWind();
     if (!wind.spots) return store.mode === "demo" ? "" : '<p class="row-sub" style="margin-top:14px">Wind: loading…</p>';
     const ll = wind.spots[0];
-    const days = [...new Set(ll.h.time.map(t => t.slice(0, 10)))].slice(0, 5);
-    const dayName = (ymd, i) => i === 0 ? "Today" : new Date(ymd + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
+    // 24 Nov: days go by their real date (old data once showed Sunday as "Today" on a Tuesday); past days are dropped.
+    const todayYmd = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    const days = [...new Set(ll.h.time.map(t => t.slice(0, 10)))].filter(d => d >= todayYmd).slice(0, 5);
+    if (!days.length) return '<p class="row-sub" style="margin-top:14px">Wind forecast is out of date; it refreshes every 3 hours.</p>';
+    const dayName = ymd => ymd === todayYmd ? "Today" : new Date(ymd + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
     const chip = (label, x) => `<span class="wind-chip ${x.v}" title="${x.win ? "about " + x.win : ""}">${label}${MARK[x.v]}${x.note ? " " + x.note : ""}</span>`;
     // Los Lances in detail
     const rows = days.map((ymd, i) => { const d = windDay(ll, ymd); if (!d) return "";
       const best = d.kite.win || d.wing.win || d.windsurf.win;
-      return `<div class="wind-row"><div class="wind-d">${dayName(ymd, i)}</div>
+      return `<div class="wind-row"><div class="wind-d">${dayName(ymd)}</div>
         <div class="wind-main"><b>${d.dir} ${Math.round(d.avg)}–${Math.round(d.max)} kn</b> <span class="row-sub">gusts ${Math.round(d.gust)}${best ? ` · best ${best}` : ""}</span>
         <div class="wind-chips">${chip("Kite surf", d.kite)}${chip("Wing foil", d.wing)}${chip("Windsurf", d.windsurf)}${(() => { const wl = waveLevel(ll.waves && ll.waves[ymd]); return wl ? `<span class="wave-chip ${wl.cls}">${wl.sym}${esc(wl.text)}</span>` : ""; })()}</div></div></div>`; }).join("");
-    const today = windDay(ll, days[0]) || {};
+    const today = (days[0] === todayYmd && windDay(ll, days[0])) || {};
     const verdict = today.kite && today.kite.v === "strong" ? `Very strong at Los Lances today (gusts ${Math.round(today.gust)} knots). Experts only, if at all.`
       : today.kite && today.kite.v === "yes" ? `Kite day at Los Lances today, ${today.dir}${today.kite.win ? ", about " + today.kite.win : ""}.`
       : today.wing && (today.wing.v === "yes" || today.wing.v === "maybe") ? "Wing foil weather today at Los Lances; light for kiting."
