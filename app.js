@@ -1120,7 +1120,9 @@
   const IS_WALL_TABLET = /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent);
   // 24 Nov (owner): the wall tablet's permanent reply speaker is the living room set (the Era 300 under it is its rear-left
   // speaker, which Sonos only plays as part of the set). Phones and iPads reply on themselves unless changed.
-  function defaultReply() { return /Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent) && store.states["media_player.tv_room_tv_room"] ? "media_player.tv_room_tv_room" : "device"; }
+  // 24 Nov (owner): not the TV speakers (he could talk over a programme). The tablet uses whatever is picked (Bar for now);
+  // a small Sonos bolted under the tablet will become its dedicated reply speaker.
+  function defaultReply() { return "device"; }
   const SAT = "assist_satellite.android_voice_assistant_assist_satellite", SAT_MP = "media_player.android_voice_assistant_media_player";
   const relay = { last: "", muted: false, prevVol: 1, runDone: "" };
   function tabletRelay() {
