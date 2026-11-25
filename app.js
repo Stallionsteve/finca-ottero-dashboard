@@ -827,7 +827,7 @@
       </div>
       ${(st("switch.finca_party_lights") || {}).state === "on" ? `<p class="note">${icon("music")}<span>Party lights are on. Pick your own music on the <a href="#media">Music</a> page.</span></p>` : ""}
       ${areas.length ? `<div class="grid g-2">${areas.map(areaCard).join("")}</div>` : '<p class="empty">No lights found in Home Assistant yet. Add the Philips Hue integration in Settings → Devices &amp; services.</p>'}
-      ${extra.length ? `<h2 class="section">Wall switches (Sonoff)</h2><div class="card">
+      ${extra.length ? `<h2 class="section">Bedroom lights</h2><div class="card">
         ${extra.map(s => `<div class="row"><span class="ico" style="--tint:var(--sunset)">${icon(/fire/i.test(nm(s)) ? "fire" : "bulb")}</span>
           <div class="row-body"><div class="row-title">${esc(swName(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "On" : "Off") : "Offline"}${swArea(s) ? " · " + esc(swArea(s)) : ""}</div></div>
           ${ok(s) ? sw(s.entity_id, s.state === "on", swName(s), "sunset") : '<span class="pill warn">Offline</span>'}</div>`).join("")}
