@@ -698,6 +698,22 @@
     out.forEach(b => b.lights.sort((x, y) => natCmp(nm(x), nm(y))));   // Bar 1, Bar 2 … Bar 5, then Side 1, Side 2
     return out;
   }
+  // 25 Nov (owner): a room whose lights fall into named sets (Bar 1–5 and Side bar 1–2) gets a row per set, each with
+  // its own switch and dimmer, inside the room's card. Sets = names without the trailing number; needs 2+ sets of 2+ lights.
+  function subGroupRows(b) {
+    const sets = new Map();
+    b.lights.forEach(s => { const k = nm(s).replace(/\s*\d+\s*$/, "").trim(); if (!sets.has(k)) sets.set(k, []); sets.get(k).push(s); });
+    const list = [...sets.entries()].filter(([, ls]) => ls.length >= 2);
+    if (list.length < 2 || list.reduce((n, [, ls]) => n + ls.length, 0) !== b.lights.length) return "";
+    return `<div class="subsets">${list.map(([name, ls]) => {
+      const on = ls.filter(s => s.state === "on"), any = on.length > 0, ids = ls.map(s => s.entity_id).join(",");
+      const m = on.find(dimmable) || ls.find(dimmable), v = m && m.attributes.brightness ? Math.round(m.attributes.brightness / 2.55) : 0;
+      return `<div class="subset ${any ? "is-on" : ""}">
+        <div class="subset-head"><b>${esc(name)}</b><span class="row-sub">${ls.length} lights · ${on.length} on</span>
+          <button class="switch" role="switch" aria-checked="${any}" aria-label="${esc(name)} lights" data-area="${esc(ids)}" data-room="${esc(name)}" style="--tint:var(--sunset)"></button></div>
+        ${m && dimmable(m) ? `<div class="bri"><input type="range" id="bri-sub-${esc(name.replace(/\W/g, ""))}" min="1" max="100" value="${v || 50}" style="--val:${v || 50}%" data-bri="${esc(ids)}" aria-label="${esc(name)} brightness" ${any ? "" : "disabled"}><span class="v">${any ? v + "%" : "Off"}</span></div>` : ""}
+      </div>`; }).join("")}</div>`;
+  }
   function areaCard(b) {
     const members = b.lights.length ? b.lights : (b.group ? [b.group] : []);
     const onCount = members.filter(s => s.state === "on").length;
@@ -715,6 +731,7 @@
       ${master && dimmable(master) ? `<div class="bri">
         <input type="range" id="bri-${esc(b.name.replace(/\W/g, ""))}" min="1" max="100" value="${bri || 50}" style="--val:${bri || 50}%" data-bri="${esc(ids)}" aria-label="${esc(b.name)} brightness" ${anyOn ? "" : "disabled"}>
         <span class="v">${anyOn ? bri + "%" : "Off"}</span></div>` : ""}
+      ${subGroupRows(b)}
       ${sceneChips(b)}
       ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" ${ok(s) ? "" : 'disabled title="No power: probably switched off at the wall"'} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
     </article>`;

@@ -25,7 +25,7 @@ window.FincaDemo = (() => {
     light("light.terrace_group", "Terrace", "terrace", true, 70, true);
     ["Terrace", "Terrace 2", "Terrace 3", "Terrace 4", "Terrace 5", "Terrace 6"].forEach((n, i) => light(`light.terrace_${i + 1}`, n, "terrace", true, 70));
     light("light.bar_group", "Bar", "bar", true, 45, true);
-    ["Bar 1", "Bar 2", "Bar 3", "Bar 4", "Bar 5", "Bar Side 1", "Bar Side 2"].forEach((n, i) => light(`light.bar_${i + 1}`, n, "bar", true, 45));
+    ["Bar 1", "Bar 2", "Bar 3", "Bar 4", "Bar 5", "Side bar 1", "Side bar 2"].forEach((n, i) => light(`light.bar_${i + 1}`, n, "bar", true, 45));
     ["Play Bar", "Play Bar Left", "TV Left 1", "TV Left 2"].forEach((n, i) => light(`light.lounge_${i + 1}`, n, "lounge", false, 60));
     light("light.hue_white_lamp_1", "Hue White Lamp 1", "living", false, 80);
     light("light.living_room_group", "Living room", "living", true, 60, true);
