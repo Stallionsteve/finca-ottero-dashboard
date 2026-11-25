@@ -337,7 +337,7 @@
     e.s = e.s * Math.pow(0.5, (now - e.t) / (14 * 864e5)) + 1; e.t = now;  // score halves every 2 weeks unused
     u[key] = e; mem.set(USE_KEY, u);
   }
-  function roomLights(room) { return realLights().filter(s => (areaOf(s.entity_id) || "") === room); }
+  function roomLights(room) { return realLights().filter(s => (areaOf(s.entity_id) || "") === room && !independentLight(s)); }
   function quickButton(key) {
     const [kind, a, b] = key.split(":");
     if (kind === "toggle") {
@@ -362,7 +362,9 @@
     const u = mem.get(USE_KEY, {}), now = Date.now();
     const score = k => u[k] ? u[k].s * Math.pow(0.5, (now - u[k].t) / (14 * 864e5)) : 0;
     const defaults = ["area:Living Room", "toggle:switch.finca_party_mode", "area:Kitchen", "ac:living:heat"];
-    const keys = [...new Set([...Object.keys(u).filter(k => score(k) >= 0.5).sort((x, y) => score(y) - score(x)), ...defaults])];
+    // 25 Nov (owner): Kitchen lights and the desk light always first (same big room, used most), then the most used.
+    const pinned = ["area:Kitchen", ...(st("light.color_light_1") ? ["toggle:light.color_light_1"] : [])];
+    const keys = [...new Set([...pinned, ...Object.keys(u).filter(k => score(k) >= 0.5).sort((x, y) => score(y) - score(x)), ...defaults])];
     const btns = []; for (const k of keys) { const h = quickButton(k); if (h) btns.push(h); if (btns.length === 4) break; }
     return btns.length ? `<div class="quick" aria-label="Most used">${btns.join("")}</div>` : "";
   }
@@ -675,15 +677,24 @@
   const dimmable = s => (s.attributes.supported_color_modes || []).some(m => m !== "onoff");
   const hasColour = s => (s.attributes.supported_color_modes || []).some(m => ["hs", "xy", "rgb", "rgbw", "rgbww"].includes(m));
   const hasWhiteTemp = s => (s.attributes.supported_color_modes || []).includes("color_temp");
+  // 25 Nov (owner): a light that sits in a room with a Hue room group but isn't part of it (the living room desk light,
+  // which the TV's Hue scene doesn't touch) is independent: it gets its own card and the room switch leaves it alone.
+  function independentLight(s) {
+    if (!s || isGroup(s)) return false;
+    const area = areaOf(s.entity_id); if (!area) return false;
+    const g = all("light").find(x => isGroup(x) && areaOf(x.entity_id) === area && Array.isArray(x.attributes.entity_id));
+    return !!g && !g.attributes.entity_id.includes(s.entity_id);
+  }
   function lightAreas() {
     const buckets = new Map();
-    const add = (name, s) => { if (!buckets.has(name)) buckets.set(name, { name, group: null, lights: [] }); return buckets.get(name); };
+    const add = (name, sortAs, sub = 0) => { if (!buckets.has(name)) buckets.set(name, { name, sortAs: sortAs || name, sub, group: null, lights: [] }); return buckets.get(name); };
     all("light").forEach(s => {
       const area = areaOf(s.entity_id) || (isGroup(s) ? nm(s) : "") || "Other lights";
-      const b = add(area, s);
+      if (independentLight(s)) { add(nm(s), area, 1).lights.push(s); return; }
+      const b = add(area);
       if (isGroup(s) && !b.group) b.group = s; else if (!isGroup(s)) b.lights.push(s);
     });
-    const out = [...buckets.values()].filter(b => b.lights.length || b.group).sort((a, b) => roomCmp(a.name, b.name));
+    const out = [...buckets.values()].filter(b => b.lights.length || b.group).sort((a, b) => roomCmp(a.sortAs, b.sortAs) || a.sub - b.sub || natCmp(a.name, b.name));
     out.forEach(b => b.lights.sort((x, y) => natCmp(nm(x), nm(y))));   // Bar 1, Bar 2 … Bar 5, then Side 1, Side 2
     return out;
   }

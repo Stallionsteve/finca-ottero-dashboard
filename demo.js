@@ -28,6 +28,9 @@ window.FincaDemo = (() => {
     ["Bar 1", "Bar 2", "Bar 3", "Bar 4", "Bar 5", "Bar Side 1", "Bar Side 2"].forEach((n, i) => light(`light.bar_${i + 1}`, n, "bar", true, 45));
     ["Play Bar", "Play Bar Left", "TV Left 1", "TV Left 2"].forEach((n, i) => light(`light.lounge_${i + 1}`, n, "lounge", false, 60));
     light("light.hue_white_lamp_1", "Hue White Lamp 1", "living", false, 80);
+    light("light.living_room_group", "Living room", "living", true, 60, true);
+    store.states["light.living_room_group"].attributes.entity_id = ["light.hue_white_lamp_1"];
+    light("light.color_light_1", "Desk light", "living", false, 70);
     light("light.pool_house", "Pool House", "pool", false, 65);
     // System Monitor (the iMac running Home Assistant)
     [["sensor.system_monitor_memory_usage", "39.2", "%"], ["sensor.system_monitor_processor_use", "4", "%"], ["sensor.system_monitor_disk_usage", "9.7", "%"],
