@@ -1020,3 +1020,9 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .subset.is-on { border-color: rgba(255, 154, 60, 0.4); }
 .subset-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .subset-head b { font-size: 15px; } .subset-head .row-sub { flex: 1; }
+
+/* 25 Nov (owner): wave colours — green under 0.9 m, orange 0.9–1 m (!), red over 1 m (!!) */
+.wave-chip.calm, .wind-coast td.wc i.wv.calm { color: #4fe0a0; border-color: color-mix(in srgb, #4fe0a0 50%, transparent); }
+.wave-chip.warn, .wind-coast td.wc i.wv.warn { color: #ffa53d; border-color: color-mix(in srgb, #ffa53d 60%, transparent); font-weight: 700; }
+.wave-chip.danger, .wind-coast td.wc i.wv.danger { color: #ff5c6c; border-color: color-mix(in srgb, #ff5c6c 60%, transparent); font-weight: 700; }
+.bang { font-weight: 800; margin-right: 3px; }

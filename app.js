@@ -499,15 +499,15 @@
   const WAVE_SVG = '<svg class="wsym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 15c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3"/><path d="M2 19c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3" opacity=".55"/></svg>';
   const WARN_SVG = '<svg class="wsym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 22 20.5H2z"/><path d="M12 10v4.5M12 17.4v.2" stroke-linecap="round"/></svg>';
   const SKULL_SVG = '<svg class="wsym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a7.5 7.5 0 0 0-7.5 7.5c0 2.6 1.3 4.4 3 5.4V19h9v-3.1c1.7-1 3-2.8 3-5.4A7.5 7.5 0 0 0 12 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M12 13.6v1.6M10 19v2M14 19v2"/></svg>';
+  // 25 Nov (owner): waves colour-coded. Under 3 ft (0.9 m) green, no mark; 3 ft to 1 m orange "!"; over 1 m red "!!";
+  // 3 m and over keeps the skull. Exact metres as before.
   function waveLevel(w) {
     if (w === undefined || w === null || isNaN(w)) return null;
-    const m = (Math.round(w * 10) / 10).toFixed(1);
-    if (w < 0.3) return { cls: "flat", short: m + "m", text: `Flat · ${m} m`, sym: WAVE_SVG };
-    if (w < 0.6) return { cls: "small", short: m + "m", text: `Waves ${m} m`, sym: WAVE_SVG };
-    if (w < 1.0) return { cls: "warn", short: m + "m", text: `Waves ${m} m`, sym: WARN_SVG };
-    if (w < 2.0) return { cls: "warn big", short: m + "m", text: `Waves ${m} m`, sym: WARN_SVG };
-    if (w < 3.0) return { cls: "danger", short: m + "m", text: `Big waves ${m} m`, sym: WARN_SVG };
-    return { cls: "danger", short: m + "m", text: `Huge waves ${m} m`, sym: SKULL_SVG };
+    const m = (Math.round(w * 10) / 10).toFixed(1), bang = n => `<b class="bang">${"!".repeat(n)}</b>`;
+    if (w < 0.9) return { cls: "calm", short: m + "m", text: `${w < 0.3 ? "Flat" : "Waves"} · ${m} m`, sym: WAVE_SVG };
+    if (w < 1.0) return { cls: "warn", short: m + "m", text: `Waves ${m} m`, sym: bang(1) };
+    if (w < 3.0) return { cls: "danger", short: m + "m", text: `${w < 2 ? "Waves" : "Big waves"} ${m} m`, sym: bang(2) };
+    return { cls: "danger", short: m + "m", text: `Huge waves ${m} m`, sym: SKULL_SVG + bang(2) };
   }
   function windCard() {
     loadWind();
@@ -547,7 +547,7 @@
       <div class="card-head" style="margin-top:16px"><span class="ico">${WX_ICON.windy}</span><div class="grow"><h3>Tarifa wind</h3><div class="row-sub">${esc(verdict)}</div></div></div>
       ${rows}
       <h3 style="margin:18px 0 6px">Along the coast</h3>
-      <p class="row-sub" style="margin:0 0 6px">Málaga to Cádiz · strongest wind in knots · K kite surf, W wing foil, S windsurf · off = offshore · ! too strong · waves (daytime, metres) shown from 0.5 m · ⚠ from 0.6 m, red from 2 m, skull from 3 m</p>
+      <p class="row-sub" style="margin:0 0 6px">Málaga to Cádiz · strongest wind in knots · K kite surf, W wing foil, S windsurf · off = offshore · ! too strong · waves (daytime, metres) from 0.5 m: <span style="color:#4fe0a0">green under 0.9 m</span>, <span style="color:#ffa53d">! 0.9–1 m</span>, <span style="color:#ff5c6c">!! over 1 m</span>, skull from 3 m</p>
       ${table}
       <p class="note" style="margin-top:8px">${icon("info")}<span>11:00–18:30, knots. Los Lances: ✓ good · ~ possible · ! too strong. Beaches marked <em>surprise</em> only appear when they're good. Offshore is only flagged where there are no rescue boats (red for kite surf, amber for wing and windsurf); Los Lances has rescue boats. Straight onshore makes kiting tricky (~). Waves are the open-sea forecast just offshore; on the beach they're usually a little smaller. Model forecasts from Open-Meteo: check the beach before you go.</span></p>
     </div>`;
