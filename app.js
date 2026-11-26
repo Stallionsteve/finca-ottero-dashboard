@@ -648,8 +648,9 @@
         </div>
       </div>
 
-      ${routineRow()}
       ${quickCard()}
+      ${miniPlayer().replace('class="mini-player"', 'class="mini-player inline"')}
+      ${routineRow()}
 
       <div class="tiles">
         ${tile({ id: "lighting", title: "Lighting", ic: "bulb", tint: "sunset", href: "#lighting", on: lightsOn > 0, state: lights.length ? `<strong>${lightsOn} of ${lights.length}</strong> lights on` : '<span class="unavail">No lights found</span>' })}
@@ -1880,7 +1881,7 @@
     const v = current();
     renderNav(location.hash === "#jarvis" ? "jarvis" : v);
     // Keep already-loaded camera pictures: rebuilding them on every redraw made them blink.
-    const html = (v !== "media" ? miniPlayer() : "") + VIEWS[v]();
+    const html = (v !== "media" && v !== "home" ? miniPlayer() : "") + VIEWS[v]();   // Home shows it under the quick buttons
     // Nothing on this page changed (e.g. only a solar reading moved while on Security): leave it alone.
     if (!scroll && html === lastHtml && v === lastView) return;
     const samePage = !scroll && v === lastView && $("#main").firstElementChild;

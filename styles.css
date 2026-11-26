@@ -1160,3 +1160,21 @@ button.bulb { -webkit-touch-callout: none; user-select: none; }
   .lighting-view .grid.g-2 { display: block; column-width: 320px; column-gap: 16px; }
   .lighting-view .grid.g-2 > .card { break-inside: avoid; display: block; margin: 0 0 16px; width: 100%; }
 }
+.mini-player.inline { position: static; margin: 4px 0 14px; }
+/* 26 Nov (owner): on phones the top card is a little more compact so the quick buttons (Kitchen, Desk light…) are on screen */
+@media (max-width: 520px) {
+  .hero { gap: 10px; padding: 14px 16px; }
+  .hero .greet { font-size: 22px; }
+  .hero .hero-sub { font-size: 13px; }
+  .hero .wx-btn { padding: 4px 10px; }
+  .hud-gauges { gap: 4px; }
+  .hud-gauges svg { max-height: 104px; }
+  .hero .status-row { gap: 6px; }
+  .hero .status-row .chip { padding: 4px 10px; font-size: 13px; min-height: 30px; }
+}
+@media (max-width: 520px) {
+  .quick { gap: 10px; }
+  .qbtn { min-height: 74px; padding: 12px 14px; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; border-radius: 18px; }
+  .qbtn svg { grid-row: span 2; width: 26px; height: 26px; }
+  .qbtn b { font-size: 16px; } .qbtn span { font-size: 13px; }
+}
