@@ -1026,3 +1026,9 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .wave-chip.warn, .wind-coast td.wc i.wv.warn { color: #ffa53d; border-color: color-mix(in srgb, #ffa53d 60%, transparent); font-weight: 700; }
 .wave-chip.danger, .wind-coast td.wc i.wv.danger { color: #ff5c6c; border-color: color-mix(in srgb, #ff5c6c 60%, transparent); font-weight: 700; }
 .bang { font-weight: 800; margin-right: 3px; }
+
+/* 26 Nov (owner): search results no longer scroll inside the page (hard to scroll on a phone); smaller rows */
+.ms-res { max-height: none !important; overflow: visible !important; }
+.ms-row { padding: 4px 8px; gap: 10px; }
+.ms-row img { width: 36px !important; height: 36px !important; }
+.ms-x { min-width: 40px; padding: 0 10px; font-size: 16px; }

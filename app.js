@@ -1276,6 +1276,7 @@
     return `<article class="card" style="--tint:var(--coral);margin-bottom:16px">
       <form id="music-search" class="jarvis-input" style="margin:0;gap:10px;flex-wrap:wrap">
         <div class="ms-bar"><input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Search Spotify" autocomplete="off" enterkeyhint="search" value="${esc(ms.q)}">
+          ${ms.q || ms.res || ms.err ? `<button class="btn btn-ghost ms-x" type="button" data-action="ms-clear" aria-label="Clear the search">✕</button>` : ""}
           <button class="btn" type="submit" aria-label="Search">${ms.busy ? '<span class="spin" aria-hidden="true"></span>' : icon("search")}</button></div>
         ${msResults()}
         ${libraryRow()}
@@ -2354,6 +2355,7 @@
     else if (a === "sfx-toggle") { ev.preventDefault(); sfxToggle(); }
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
     else if (a === "dev-toggle") { ev.preventDefault(); devOpen = !devOpen; lastHtml = ""; render(false); }
+    else if (a === "ms-clear") { ev.preventDefault(); ms.q = ""; ms.res = null; ms.sel = null; ms.err = ""; const i = $("#music-q"); if (i) i.value = ""; lastHtml = ""; render(false); }
     else if (a === "sys-details") { ev.preventDefault(); sysOpen = !sysOpen; try { localStorage.setItem("finca.sysOpen", sysOpen ? "1" : "0"); } catch { /* fine */ } lastHtml = ""; render(false); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
     else if (a === "close-nav") closeLayer();
@@ -2411,7 +2413,7 @@
       .then(res => { const playing = res.ok.length;
         if (!playing) throw new Error("none");
         if (pick && /^liked songs/i.test(pick.name)) svc("media_player", "shuffle_set", { shuffle: true }, { entity_id: res.ok[0] }).catch(() => null);
-        setPlay("ok", 3000);
+        setPlay("ok", 3000); ms.res = null; ms.err = ""; lastHtml = ""; render(false);   // 26 Nov (owner): results close once it plays
         toast(res.bad.length ? `Playing ${q}. ${res.bad.map(nmOf).join(" and ")} couldn't join.` : `Playing ${q}${where.length > 1 ? ` on ${where.length} speakers` : ""}`); })
       .catch(() => { setPlay("fail", 3500); toast(`Couldn't play "${q}". Spotify may be busy; try again in a minute.`); });
   });
@@ -2513,6 +2515,7 @@
   }
   const nmOf = e => /^media_player\.tv_room(_tv_room)?$/.test(e) ? "Living room" : (st(e) ? nm(st(e)).replace(/ - Sonos.*$/, "") : e);
   document.addEventListener("toggle", ev => { if (ev.target.classList && ev.target.classList.contains("st-pick")) mem.set("st.open", ev.target.open ? "1" : ""); }, true);
+  document.addEventListener("input", ev => { if (ev.target.id === "music-q" && !ev.target.value.trim() && (ms.res || ms.err || ms.sel)) { ms.q = ""; ms.res = null; ms.sel = null; ms.err = ""; lastHtml = ""; render(false); setTimeout(() => { const i = $("#music-q"); if (i) i.focus(); }, 0); } });
   document.addEventListener("submit", ev => { if (ev.target.id === "jform") { ev.preventDefault(); const i = $("#jtext"); const v = i.value; i.value = ""; ask(v); } });
   document.addEventListener("change", ev => {
     const t = ev.target;
