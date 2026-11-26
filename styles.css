@@ -1154,3 +1154,9 @@ button.bulb { -webkit-touch-callout: none; user-select: none; }
 .siren-hold.holding .fill { width: 100%; transition: width 2s linear; }
 .siren-hold span:last-child { position: relative; }
 .cam-tile .ph svg { width: 30px; height: 30px; opacity: .6; }
+
+/* 26 Nov (owner): lighting cards keep their own height (a small card like the Desk light isn't stretched to match a big one) */
+@media (min-width: 700px) {
+  .lighting-view .grid.g-2 { display: block; column-width: 320px; column-gap: 16px; }
+  .lighting-view .grid.g-2 > .card { break-inside: avoid; display: block; margin: 0 0 16px; width: 100%; }
+}

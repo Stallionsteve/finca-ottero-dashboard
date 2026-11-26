@@ -1048,6 +1048,7 @@
         ${ok(s) ? `<button class="btn btn-primary" data-live="${s.entity_id}">${icon("camera")}Live view</button>` : ""}
         ${s.attributes.video_url ? `<button class="btn" data-clip="${s.entity_id}">Last recording</button>` : ""}
         ${info.snapBtn ? `<button class="btn" data-camsnap="${info.snapBtn.entity_id}">Snapshot now</button>` : ""}
+        ${["front_door", "main_gate"].includes(k) ? `<a class="btn" href="ring://" rel="noopener">${icon("mic")}Talk (Ring app)</a>` : ""}
         <button class="btn btn-ghost" data-camset="${k}">Settings</button>
         <button class="btn btn-ghost" data-action="close">Close</button></div>`, true);
   }
@@ -1179,6 +1180,7 @@
           <div class="card-head"><span class="ico" style="--tint:var(--coral);width:58px;height:58px">${icon("gate")}</span>
             <div class="grow"><h3>Main Gate</h3><div class="row-sub">${g ? (ok(g) ? "Sends one open pulse" : "Offline") : "Not found in Home Assistant"}</div></div></div>
           <button class="btn btn-primary" style="width:100%;min-height:58px;font-size:17px" data-action="gate" ${g && ok(g) ? "" : "disabled"}>${icon("gate")}Open main gate</button>
+          <a class="btn" href="ring://" rel="noopener" style="width:100%;min-height:50px;margin-top:10px">${icon("mic")}Talk at the gate (opens the Ring app)</a>
           <p class="note" style="margin-top:14px">${icon("info")}<span>The gate switch resets itself straight away, so the app can't tell you whether the gate is open or closed. Check the camera.</span></p>
         </article>
         ${cam ? camCard(cam) : ""}
@@ -1542,11 +1544,19 @@
     if (playing && a.media_position_updated_at) pos += (Date.now() - Date.parse(a.media_position_updated_at)) / 1000;
     return Math.min(pos, a.media_duration || pos);
   }
+  const npSticky = { id: (() => { try { return localStorage.getItem("finca.np") || ""; } catch { return ""; } })() };
+  setInterval(() => { try { if (npSticky.id) localStorage.setItem("finca.np", npSticky.id); } catch { /* fine */ } }, 10000);
   function npCurrent() {
     const cands = all("media_player").filter(s => (store.mode === "demo" || ["sonos", "music_assistant"].includes(platformOf(s.entity_id))) && ok(s)
       && ["playing", "paused"].includes(s.state) && s.attributes.media_title
       && !((s.attributes.group_members || [])[0] && s.attributes.group_members[0] !== s.entity_id));
     const rank = s => (s.state === "playing" ? 0 : 2) + (platformOf(s.entity_id) === "sonos" ? 0 : 1);
+    // 26 Nov (owner): pausing used to make the player jump to another speaker's old item (Hot Together → Talk Radio Europe).
+    // While something plays, it's remembered; when nothing plays, the remembered one stays shown so Play resumes it.
+    const playingNow = cands.filter(x => x.state === "playing").sort((a, b) => rank(a) - rank(b) || Date.parse(b.last_changed) - Date.parse(a.last_changed));
+    if (playingNow.length) { npSticky.id = playingNow[0].entity_id; return playingNow[0]; }
+    const kept = cands.find(x => x.entity_id === npSticky.id);
+    if (kept) return kept;
     return cands.sort((a, b) => rank(a) - rank(b) || Date.parse(b.last_changed) - Date.parse(a.last_changed))[0] || null;
   }
   const spkName = e => { const x = st(e); return e === "media_player.tv_room_tv_room" || e === "media_player.tv_room" ? "Living room" : x ? nm(x).replace(/ - Sonos.*$/, "") : e; };
