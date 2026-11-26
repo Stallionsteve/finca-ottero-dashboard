@@ -1178,3 +1178,17 @@ button.bulb { -webkit-touch-callout: none; user-select: none; }
   .qbtn svg { grid-row: span 2; width: 26px; height: 26px; }
   .qbtn b { font-size: 16px; } .qbtn span { font-size: 13px; }
 }
+/* 26 Nov (owner): wall tablet (short landscape screen): keep the quick buttons (Kitchen, Desk light…) on the first screen */
+@media (min-width: 700px) and (max-height: 700px) {
+  .hero { gap: 8px; padding: 12px 18px; }
+  .hero .greet { font-size: 22px; }
+  .hero .hero-sub { font-size: 13px; margin: 0; }
+  .hero .wx-btn { padding: 4px 10px; }
+  .gauge svg, .gauge .g-txt { max-width: 92px; }
+  .hero .status-row { gap: 6px; } .hero .status-row .chip { padding: 3px 10px; min-height: 28px; font-size: 13px; }
+  .quick { gap: 10px; }
+  .qbtn { min-height: 70px; padding: 10px 14px; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; border-radius: 18px; }
+  .qbtn svg { grid-row: span 2; width: 26px; height: 26px; }
+  .qbtn b { font-size: 16px; } .qbtn span { font-size: 13px; }
+}
+.mini-player .mini-main { background: var(--sand); color: #0b1030; } .mini-player .mini-main.paused { background: var(--coral, #ff7a59); color: #fff; }

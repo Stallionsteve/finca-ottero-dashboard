@@ -149,6 +149,8 @@ window.FincaDemo = (() => {
       list.forEach(id => {
         const s = store.states[id];
         if (service === "media_play_pause") set(id, s.state === "playing" ? "paused" : "playing");
+        if (service === "media_pause") set(id, "paused");
+        if (service === "media_play") set(id, "playing");
         if (service === "volume_set") set(id, s.state, { volume_level: data.volume_level });
       });
     }

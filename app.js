@@ -1599,7 +1599,8 @@
     return `<div class="mini-player" role="region" aria-label="Now playing">
       <a class="mini-open" href="#media"><img src="${a.entity_picture ? esc(artUrl(a.entity_picture)) : FALLBACK_ART}" alt="" ${a.entity_picture ? "" : 'class="fallback"'}>
         <span class="mini-t"><b>${esc(a.media_title)}</b><small>${esc(a.media_artist || a.media_channel || spkName(s.entity_id))}</small></span></a>
-      <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="${playing ? "Pause" : "Play"}">${icon(playing ? "pause" : "play")}</button>
+      <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_previous_track" aria-label="Previous track">${icon("prev")}</button>
+      <button class="round-btn mini-main ${playing ? "" : "paused"}" data-media="${s.entity_id}" data-cmd="${playing ? "media_pause" : "media_play"}" aria-label="${playing ? "Pause" : "Resume"}">${icon(playing ? "pause" : "play")}</button>
       <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_next_track" aria-label="Next track">${icon("next")}</button>
     </div>`;
   }
