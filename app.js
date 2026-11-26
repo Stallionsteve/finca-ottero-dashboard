@@ -1456,6 +1456,8 @@
       <div class="head-btns">
         ${(() => { const p = st("switch.finca_party_mode"); if (!p) return ""; const on = p.state === "on";
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${p.entity_id}">${icon("party")}${on ? "End the party" : "Party mode"}</button>`; })()}
+        ${(() => { const pl = st("switch.finca_party_lights"); if (!pl) return ""; const on = pl.state === "on";   // 26 Nov (owner): here too
+          return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${pl.entity_id}">${icon("party")}${on ? "Stop party lights" : "Party lights"}</button>`; })()}
         ${(() => { const r = st("switch.finca_romantic_mode"); if (!r) return ""; const on = r.state === "on";
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${r.entity_id}">${icon("heart")}${on ? "End romantic mode" : "Romantic mode"}</button>`; })()}
         ${(() => { const mv = st("switch.finca_movie_mode"); if (!mv) return ""; const on = mv.state === "on";
