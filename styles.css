@@ -1108,3 +1108,49 @@ button.bulb { -webkit-touch-callout: none; user-select: none; }
 .sensors-card .row { padding: 10px 0; border-top: 1px solid var(--line); } .sensors-card .row:first-child { border-top: 0; }
 .sensors-card .warn-row .row-sub { color: var(--warn); }
 .lighting-view .hint { margin: 18px 0 0; text-align: center; opacity: .8; }
+
+/* ===== 26 Nov (owner): Security page, "if Apple made Ring" ===== */
+.security-view .sec-status { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 18px; margin: 0 0 14px; border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(79,224,160,.14), rgba(46,230,214,.05)); }
+.sec-status b { display: block; font-size: 18px; } .sec-status small { color: var(--muted); font-size: 13px; }
+.sec-status .sec-shield { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; background: rgba(79,224,160,.18); color: #4fe0a0; }
+.sec-status .sec-shield svg { width: 24px; height: 24px; }
+.sec-status.warn { background: linear-gradient(135deg, rgba(255,165,61,.18), rgba(255,165,61,.04)); } .sec-status.warn .sec-shield { color: #ffa53d; background: rgba(255,165,61,.18); }
+.sec-status.bad { background: linear-gradient(135deg, rgba(255,92,108,.25), rgba(255,92,108,.06)); border-color: rgba(255,92,108,.6); } .sec-status.bad .sec-shield { color: #ff5c6c; background: rgba(255,92,108,.2); }
+.sec-alert, .sec-priv { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; margin: 0 0 12px; border: 1px solid var(--line); }
+.sec-alert { border-color: #ff5c6c; background: rgba(255,92,108,.15); } .sec-alert b { flex: 1; }
+.sec-priv { background: rgba(46,230,214,.08); } .sec-priv span { flex: 1; } .sec-priv svg { width: 18px; height: 18px; }
+.cam-wall { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .cam-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; } }
+.cam-tile { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #070b1c; }
+.cam-tile .cam-pic { display: block; width: 100%; aspect-ratio: 16 / 10; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; position: relative; }
+.cam-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-tile .ph { height: 100%; display: grid; place-items: center; align-content: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.cam-tile .cam-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 10px 8px; text-align: left; display: flex; flex-direction: column;
+  background: linear-gradient(transparent, rgba(0,0,0,.78)); }
+.cam-tile .cam-cap b { font-size: 14px; } .cam-tile .cam-cap small { font-size: 11px; color: rgba(255,255,255,.78); }
+.cam-tile .cam-more { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; border-radius: 50%; border: 0; color: #fff; font-size: 18px; line-height: 1;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(6px); cursor: pointer; }
+.cam-live-dot { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 700; padding: 3px 8px 3px 18px; border-radius: 999px; background: rgba(255,92,108,.9); color: #fff; }
+.cam-live-dot::before { content: ""; position: absolute; left: 7px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: #fff; animation: campulse 1.2s ease-in-out infinite; }
+.cam-tile.motion { border-color: #ff5c6c; box-shadow: 0 0 0 2px rgba(255,92,108,.55), 0 0 26px -6px #ff5c6c; animation: camring 1.8s ease-in-out infinite; }
+@keyframes campulse { 50% { opacity: .3; } } @keyframes camring { 50% { box-shadow: 0 0 0 4px rgba(255,92,108,.25), 0 0 30px -4px #ff5c6c; } }
+.cam-priv { position: absolute; top: 8px; left: 8px; font-size: 11px; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; }
+.cam-tile.offline { opacity: .6; }
+.cam-acts { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.tl-card .tl-filter { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 8px; }
+.tl-day { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
+.tl-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 4px; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tl-time { font-family: var(--font-data); font-size: 13px; color: var(--muted); width: 46px; flex: none; }
+.tl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #5fd4ff; } .tl-dot.doorbell { background: #ffa53d; } .tl-dot.opened { background: #ff5c6c; }
+.tl-what { font-size: 14px; }
+.alarm-btns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.alarm-btns .btn { min-height: 48px; padding: 0 6px; font-size: 14px; } .alarm-btns .btn.is-on { border-color: var(--turq); color: var(--turq); opacity: 1; }
+.alarm-card.is-bad { border-color: #ff5c6c; }
+.pill.bad { color: #ff5c6c; border-color: rgba(255, 92, 108, 0.5); }
+.siren-list { display: grid; gap: 8px; margin: 12px 0; }
+.siren-hold { position: relative; overflow: hidden; min-height: 52px; -webkit-touch-callout: none; user-select: none; touch-action: none; }
+.siren-hold .fill { position: absolute; inset: 0; width: 0; background: rgba(255,92,108,.35); }
+.siren-hold.holding .fill { width: 100%; transition: width 2s linear; }
+.siren-hold span:last-child { position: relative; }
+.cam-tile .ph svg { width: 30px; height: 30px; opacity: .6; }

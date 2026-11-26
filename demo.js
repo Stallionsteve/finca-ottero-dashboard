@@ -65,11 +65,25 @@ window.FincaDemo = (() => {
     ent("sensor.finca_inverter_state", "Bulk", { friendly_name: "Inverter/charger" }, { platform: "template" });
     sensor("sensor.finca_solar_energy_today", 14.6, "kWh", "Solar today");
 
-    ent("alarm_control_panel.ring_alarm", "disarmed", { friendly_name: "Finca Alarm" }, { platform: "ring" });
-    ["Main Gate Doorbell", "Front Door Doorbell", "Living Room Camera", "Conservatory Camera"].forEach(n =>
-      ent("camera." + n.toLowerCase().replace(/ /g, "_"), "idle", { friendly_name: n }, { platform: "ring" }));
+    ent("alarm_control_panel.estepona_alarm", "disarmed", { friendly_name: "Estepona Alarm", DisarmedTime: minsAgo(600) }, { platform: "mqtt" });
+    // Ring cameras named as on the real system (26 Nov), with batteries, motion, sirens and settings
+    const nowS = Date.now() / 1000;
+    [["main_gate", "Main Gate", 63, 720], ["front_door", "Front Door", 66, 95], ["terrace", "Terrace", 100, 1], ["conservatory", "Conservatory", 56, 40], ["downstairs", "Downstairs", 100, 300], ["hallway", "Hallway", 100, 2000]]
+      .forEach(([k, n, bat, mins]) => {
+        ent(`camera.${k}_live_view`, "idle", { friendly_name: `${n} Live view` }, { platform: "ring" });
+        ent(`binary_sensor.${k}_motion`, mins < 2 ? "on" : "off", { friendly_name: `${n} Motion`, device_class: "motion", lastMotion: Math.round(nowS - mins * 60) }, { platform: "mqtt" });
+        ent(`sensor.${k}_battery`, String(bat), { friendly_name: `${n} Battery`, unit_of_measurement: "%", device_class: "battery" }, { platform: "mqtt" });
+        ent(`switch.${k}_motion_detection`, "on", { friendly_name: `${n} Motion detection` }, { platform: "ring" });
+        ent(`switch.${k}_motion_warning`, "off", { friendly_name: `${n} Motion warning` }, { platform: "mqtt" });
+        if (["terrace", "conservatory", "downstairs", "hallway"].includes(k)) ent(`siren.${k}_siren`, "off", { friendly_name: `${n} Siren` }, { platform: "mqtt" });
+        if (["front_door", "main_gate"].includes(k)) ent(`binary_sensor.${k}_ding`, "off", { friendly_name: `${n} Ding`, lastDing: Math.round(nowS - (k === "front_door" ? 95 : 1500) * 60) }, { platform: "mqtt" });
+      });
+    [["front_door", "Front Door", "off"], ["back_door", "Back Door", "on"], ["front_window", "Front Window", "off"], ["front_window_2", "Front Window", "off"]].forEach(([k, n, v]) => {
+      ent(`binary_sensor.${k}`, v, { friendly_name: n, device_class: k.includes("window") ? "window" : "door" }, { platform: "mqtt", changed: minsAgo(k === "back_door" ? 7 : 300) });
+      ent(`binary_sensor.${k}_tamper`, "off", { friendly_name: `${n} Tamper` }, { platform: "mqtt" }); });
+    ["estepona_base_station", "estepona_range_extender", "entrance_hall_keypad", "outdoor_siren_55705"].forEach(k => ent(`binary_sensor.${k}_tamper`, "off", { friendly_name: k + " tamper" }, { platform: "mqtt" }));
+    ent("switch.outdoor_siren_55705", "off", { friendly_name: "Outdoor Siren" }, { platform: "mqtt" });
     ent("event.front_door_doorbell_ding", now(), { friendly_name: "Front Door Doorbell ding" }, { platform: "ring", changed: minsAgo(95) });
-    ent("binary_sensor.main_gate_motion", "off", { friendly_name: "Main Gate motion", device_class: "motion" }, { platform: "ring", changed: minsAgo(12) });
     ent("binary_sensor.hue_outdoor_motion_sensor_1", "off", { friendly_name: "Hue Outdoor Motion Sensor 1", device_class: "motion" }, { platform: "hue", changed: minsAgo(3), area: "terrace" });
     ent("binary_sensor.hue_motion_sensor_1", "off", { friendly_name: "Hue Motion Sensor 1", device_class: "motion" }, { platform: "hue", changed: minsAgo(70), area: "hall" });
 
@@ -127,6 +141,8 @@ window.FincaDemo = (() => {
         if (id === "switch.main_gate") return; // momentary: stays off
         set(id, service === "turn_on" || (service === "toggle" && store.states[id].state !== "on") ? "on" : "off");
       });
+    } else if (domain === "siren") { list.forEach(id => set(id, service === "turn_on" ? "on" : "off"));
+    } else if (domain === "alarm_control_panel") { list.forEach(id => set(id, { alarm_arm_home: "armed_home", alarm_arm_away: "armed_away", alarm_disarm: "disarmed" }[service] || store.states[id].state));
     } else if (domain === "automation") {
       list.forEach(id => set(id, service === "turn_on" || (service === "toggle" && store.states[id].state !== "on") ? "on" : "off"));
     } else if (domain === "media_player") {

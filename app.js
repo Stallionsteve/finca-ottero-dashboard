@@ -106,6 +106,8 @@
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     power: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v3.3M12 17.2v3.3M3.5 12h3.3M17.2 12h3.3"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+    siren: '<path d="M7 18v-5a5 5 0 0 1 10 0v5"/><path d="M5 18h14v3H5z"/><path d="M12 3v2M4.2 6.2l1.4 1.4M19.8 6.2l-1.4 1.4"/>',
     lock: '<rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
     alexa: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5a5 5 0 1 1 7 0"/>',
     snow: '<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="M9.6 4.2 12 6.5l2.4-2.3M9.6 19.8 12 17.5l2.4 2.3"/><circle cx="12" cy="12" r="2.2"/>',
@@ -1011,43 +1013,163 @@
       ${(st("switch.finca_intruder_warning_active") || {}).state === "on" ? '<button class="btn btn-sm btn-primary" data-action="intruder-stop">Stop the warning</button>' : '<button class="btn btn-sm" data-action="intruder-test">Test quietly</button>'}
     </article>`;
   }
+  // ===== 26 Nov (owner): Security page "as if Apple made Ring". Cameras first; then activity, doors, doorbell/gate,
+  // alarm (arm/disarm behind a confirmation screen), sirens (confirm + press and hold), privacy, system health.
+  const camKey = s => s.entity_id.replace(/^camera\./, "").replace(/_(live_view|snapshot)$/, "");
+  const INDOOR_CAMS = ["conservatory", "hallway", "downstairs"];
+  function camInfo(k) {
+    const m = st(`binary_sensor.${k}_motion`), bat = st(`sensor.${k}_battery`);
+    const lm = m ? (+m.attributes.lastMotion || 0) * 1000 : 0, la = st(`sensor.${k}_last_activity`);
+    const last = lm || (la && ok(la) ? Date.parse(la.state) : 0);
+    return { k, motionNow: !!(m && m.state === "on" && lm > Date.now() - 120000), last, battery: bat && ok(bat) && isFinite(+bat.state) ? Math.round(+bat.state) : null,
+      detect: st(`switch.${k}_motion_detection`), warn: st(`switch.${k}_motion_warning`), siren: st(`siren.${k}_siren`), snapBtn: st(`button.${k}_take_snapshot`), vol: st(`number.${k}_volume`) };
+  }
+  const agoMs = t => t ? ago(new Date(t).toISOString()) : "";
+  function camTile(s) {
+    const k = camKey(s), info = camInfo(k), snap = /_live_view$/.test(s.entity_id) ? snapFor(s) : null;
+    const img = snap && ok(snap) && snap.attributes.entity_picture ? snap : s, pic = img.attributes.entity_picture;
+    const off = info.detect && info.detect.state === "off";
+    return `<article class="cam-tile ${info.motionNow ? "motion" : ""} ${ok(s) ? "" : "offline"}">
+      <button class="cam-pic" data-camfull="${s.entity_id}" aria-label="Open ${esc(camName(s))}">
+        ${pic && ok(img) ? `<img data-cam="${img.entity_id}" alt="Latest image from ${esc(camName(s))}">` : `<div class="ph">${icon("camera")}<span>${ok(s) ? "No picture yet" : "Camera offline"}</span></div>`}
+        ${info.motionNow ? '<span class="cam-live-dot">Motion</span>' : ""}${off ? '<span class="cam-priv">Motion off</span>' : ""}
+        <span class="cam-cap"><b>${esc(camName(s))}</b><small>${info.last ? "Motion " + agoMs(info.last) : ok(s) ? "No motion yet" : "Offline"}${info.battery !== null ? ` · ${info.battery}%` : ""}</small></span>
+      </button>
+      <button class="cam-more" data-camset="${k}" aria-label="${esc(camName(s))} settings">⋯</button>
+    </article>`;
+  }
+  function camFull(id) {
+    const s = st(id); if (!s) return; const k = camKey(s), info = camInfo(k), snap = snapFor(s) || s;
+    const pic = (snap.attributes || {}).entity_picture;
+    sheet(`<h2>${esc(camName(s))}</h2>
+      <div class="cam-view">${pic ? `<img src="${esc(artUrl(pic))}" alt="Latest image">` : `<div class="ph">${icon("camera")}<span>No picture yet</span></div>`}</div>
+      <p class="row-sub" style="margin:8px 0">${info.last ? "Last motion " + agoMs(info.last) : ""}${info.battery !== null ? ` · battery ${info.battery}%` : ""}</p>
+      <div class="acts cam-acts">
+        ${ok(s) ? `<button class="btn btn-primary" data-live="${s.entity_id}">${icon("camera")}Live view</button>` : ""}
+        ${s.attributes.video_url ? `<button class="btn" data-clip="${s.entity_id}">Last recording</button>` : ""}
+        ${info.snapBtn ? `<button class="btn" data-camsnap="${info.snapBtn.entity_id}">Snapshot now</button>` : ""}
+        <button class="btn btn-ghost" data-camset="${k}">Settings</button>
+        <button class="btn btn-ghost" data-action="close">Close</button></div>`, true);
+  }
+  function camSettings(k) {
+    const info = camInfo(k), name = camName(st(`camera.${k}_live_view`) || { entity_id: k, attributes: { friendly_name: k.replace(/_/g, " ") } });
+    const row = (ent, title, sub) => ent ? `<div class="row"><div class="row-body"><div class="row-title">${title}</div><div class="row-sub">${sub}</div></div>${ok(ent) ? sw(ent.entity_id, ent.state === "on", title) : '<span class="pill warn">Offline</span>'}</div>` : "";
+    sheet(`<h2>${esc(name)} settings</h2>
+      ${row(info.detect, "Motion detection", "Off = no motion alerts or recordings from this camera")}
+      ${row(info.warn, "Motion warning", "The camera speaks a warning when it sees someone")}
+      ${info.vol && ok(info.vol) ? `<div class="row"><div class="row-body"><div class="row-title">Speaker volume</div><div class="row-sub">Chime and warning loudness</div></div></div>
+        <div class="bri"><input type="range" min="${info.vol.attributes.min || 0}" max="${info.vol.attributes.max || 10}" step="${info.vol.attributes.step || 1}" value="${+info.vol.state}" style="--val:${(+info.vol.state - (info.vol.attributes.min || 0)) / ((info.vol.attributes.max || 10) - (info.vol.attributes.min || 0)) * 100}%" data-number="${info.vol.entity_id}" aria-label="Speaker volume"><span class="v">${+info.vol.state}</span></div>` : ""}
+      <p class="note">${icon("info")}<span>Changes take effect straight away in Ring.</span></p>
+      <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Done</button></div>`, true);
+  }
+  // Activity timeline from Home Assistant's logbook (motion, doorbell presses, doors/windows opening).
+  const tl = { at: 0, items: null, busy: false, cam: "", more: false };
+  async function loadTimeline() {
+    if (tl.busy || Date.now() - tl.at < 90000) return;
+    tl.busy = true;
+    const cams = cameraList().map(camKey), doorIds = ["binary_sensor.front_door", "binary_sensor.back_door", "binary_sensor.front_window", "binary_sensor.front_window_2"].filter(st);
+    const ids = [...cams.map(k => `binary_sensor.${k}_motion`), ...cams.map(k => `binary_sensor.${k}_ding`), ...doorIds].filter(st);
+    try {
+      let ev = [];
+      if (store.mode === "demo") ev = ids.slice(0, 6).map((e, i) => ({ entity_id: e, state: "on", when: Date.now() / 1000 - i * 3500 - 600 }));
+      else ev = await store.conn.sendMessagePromise({ type: "logbook/get_events", start_time: new Date(Date.now() - 48 * 3600e3).toISOString(), entity_ids: ids });
+      tl.items = (ev || []).filter(e => e.state === "on").map(e => {
+        const k = e.entity_id.replace(/^binary_sensor\./, "").replace(/_(motion|ding)$/, ""), kind = /_ding$/.test(e.entity_id) ? "Doorbell" : /_motion$/.test(e.entity_id) ? "Motion" : "Opened";
+        return { t: (e.when > 1e12 ? e.when : e.when * 1000), kind, k, name: nm(st(e.entity_id) || { entity_id: e.entity_id, attributes: {} }).replace(/\s+(motion|ding)$/i, "") };
+      }).sort((a, b) => b.t - a.t);
+      tl.at = Date.now(); lastHtml = ""; render(false);
+    } catch { tl.at = Date.now() - 60000; } finally { tl.busy = false; }
+  }
+  function timelineCard() {
+    loadTimeline();
+    if (!tl.items) return "";
+    const camsWith = [...new Set(tl.items.map(x => x.k))];
+    const items = tl.items.filter(x => !tl.cam || x.k === tl.cam), shown = tl.more ? items.slice(0, 40) : items.slice(0, 8);
+    const day = t => { const d = new Date(t), today = new Date(); const y = new Date(today - 864e5);
+      return d.toDateString() === today.toDateString() ? "Today" : d.toDateString() === y.toDateString() ? "Yesterday" : d.toLocaleDateString("en-GB", { weekday: "long" }); };
+    let lastDay = "";
+    return `<h2 class="section">Activity</h2><article class="card tl-card">
+      <div class="tl-filter">${["", ...camsWith].map(k => `<button class="ms-tab" data-tlcam="${k}" aria-selected="${tl.cam === k}">${k ? esc(k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())) : "All"}</button>`).join("")}</div>
+      ${shown.length ? shown.map(x => { const d = day(x.t), head = d !== lastDay ? `<div class="tl-day">${d}</div>` : ""; lastDay = d;
+        const cam = st(`camera.${x.k}_live_view`);
+        return `${head}<button class="tl-row" ${cam ? `data-camfull="${cam.entity_id}"` : ""}><span class="tl-time">${new Date(x.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>
+          <span class="tl-dot ${x.kind.toLowerCase()}"></span><span class="tl-what"><b>${x.kind}</b> · ${esc(x.name)}</span></button>`; }).join("") : '<p class="row-sub">Nothing in the last two days.</p>'}
+      ${items.length > 8 ? `<button class="btn btn-sm btn-ghost" data-action="tl-more">${tl.more ? "Show less" : `Show ${Math.min(items.length, 40) - 8} more`}</button>` : ""}
+    </article>`;
+  }
   function viewSecurity() {
-    // owner, 13 Nov: cameras first; recent activity as a compact horizontal strip; door/window/motion sensors
-    // (Ring Alarm via Ring-MQTT) shown when they exist.
-    const alarms = all("alarm_control_panel"), cams = cameraList();
-    const SENSOR_CLASSES = ["motion", "occupancy", "door", "window", "opening", "garage_door"];
-    const sensors = Object.values(store.states).filter(s => !isHidden(s) && domainOf(s.entity_id) === "binary_sensor" && SENSOR_CLASSES.includes(s.attributes.device_class)
-      && !/hue_motion|_light_sensor|_motion_sensor_enabled/.test(s.entity_id) && platformOf(s.entity_id) !== "hue");
-    const activity = Object.values(store.states)
-      .filter(s => !isHidden(s) && ok(s) && (domainOf(s.entity_id) === "event" || sensors.includes(s)))
-      .filter(s => domainOf(s.entity_id) !== "event" || /ring|doorbell|ding|motion/i.test(platformOf(s.entity_id) + nm(s)))
-      .filter(s => s.last_changed && !/^(unknown|unavailable)$/.test(s.state))
-      .sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed)).slice(0, 12);
-    const evLabel = s => domainOf(s.entity_id) === "event" ? nm(s).replace(/\s+(ding|motion)$/i, m => " · " + m.trim().toLowerCase())
-      : `${nm(s)} · ${["door", "window", "opening", "garage_door"].includes(s.attributes.device_class) ? (s.state === "on" ? "opened" : "closed") : (s.state === "on" ? "motion" : "clear")}`;
-    const doors = sensors.filter(s => ["door", "window", "opening", "garage_door"].includes(s.attributes.device_class));
-    const motions = sensors.filter(s => ["motion", "occupancy"].includes(s.attributes.device_class) && !/_ding$/.test(s.entity_id));   // doorbell presses show in Recent activity, not as motion sensors
-    const sensorRow = s => { const open = s.state === "on", isDoor = doors.includes(s);
-      return `<div class="row"><div class="row-body"><div class="row-title">${esc(nm(s))}</div><div class="row-sub">${ok(s) ? (isDoor ? (open ? "Open" : "Closed") : (open ? "Motion now" : "Clear")) + " · " + ago(s.last_changed) : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div>
-        <span class="pill ${open ? "warn" : "ok"}">${ok(s) ? (isDoor ? (open ? "Open" : "Closed") : (open ? "Motion" : "Clear")) : "Offline"}</span></div>`; };
-    return `<section class="view">
-      <div class="page-head"><div><h1>Security</h1><p>Ring cameras, doorbells and alarm</p></div></div>
-      ${cams.length ? `<div class="grid g-2">${cams.map(camCard).join("")}</div>` : '<p class="empty">No cameras found yet.</p>'}
-      ${activity.length ? `<h2 class="section">Recent activity</h2><div class="act-strip">${activity.map(s => `<span class="act-chip ${Date.now() - new Date(s.last_changed) < 15 * 60000 ? "fresh" : ""}"><b>${esc(evLabel(s))}</b><small>${ago(s.last_changed)}</small></span>`).join("")}</div>` : ""}
-      ${alarms.length || doors.length || motions.length ? `<h2 class="section">Alarm and sensors</h2><div class="grid g-2">
-        ${alarms.map(a => `<article class="card"><div class="card-head">
-            <span class="ico" style="width:58px;height:58px">${icon("shield")}</span>
-            <div class="grow"><h3>${esc(nm(a))}</h3><div class="row-sub">Status only · changed ${ago(a.last_changed)}</div></div>
-            <span class="pill ${a.state === "disarmed" ? "ok" : "warn"}">${esc(alarmLabel(a))}</span></div>
-          <p class="note">${icon("lock")}<span>Arm and disarm with the Ring app or keypad. This app never changes the alarm.</span></p></article>`).join("")}
-        ${doors.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("lock")}</span><div class="grow"><h3>Doors and windows</h3><div class="row-sub">${doors.filter(s => s.state === "on").length} open</div></div></div>${doors.map(sensorRow).join("")}</article>` : ""}
-        ${motions.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>Motion sensors</h3></div></div>${motions.map(sensorRow).join("")}</article>` : ""}
-      </div>` : ""}
+    const alarm = all("alarm_control_panel")[0], cams = cameraList();
+    const contacts = [["binary_sensor.front_door", "Front door"], ["binary_sensor.back_door", "Back door"], ["binary_sensor.front_window", "Front window"], ["binary_sensor.front_window_2", "Front window 2"]]
+      .map(([e, n]) => ({ s: st(e), n, tamper: st(e + "_tamper") })).filter(x => x.s);
+    const open = contacts.filter(x => x.s.state === "on"), infos = cams.map(c => ({ c, i: camInfo(camKey(c)) }));
+    const moving = infos.filter(x => x.i.motionNow), lowBat = infos.filter(x => x.i.battery !== null && x.i.battery <= 25);
+    const tampers = Object.values(store.states).filter(x => /_tamper(_\d+)?$/.test(x.entity_id) && x.state === "on");
+    const offlineCams = cams.filter(c => !ok(c));
+    const aState = alarm ? alarm.state : "", triggered = aState === "triggered";
+    const tone = triggered || tampers.length ? "bad" : open.length || moving.length ? "warn" : "ok";
+    const headline = triggered ? "The alarm is going off" : tampers.length ? "Tamper alert" : open.length ? `${open.map(x => x.n).join(" and ")} open`
+      : moving.length ? `Movement at the ${moving.map(x => camName(x.c)).join(" and ")}` : "All secure";
+    const privacyOn = INDOOR_CAMS.every(k => (st(`switch.${k}_motion_detection`) || {}).state === "off");
+    const sirens = [...["conservatory", "hallway", "downstairs", "terrace"].map(k => st(`siren.${k}_siren`)), st("switch.outdoor_siren_55705")].filter(Boolean);
+    const sirenOn = sirens.filter(x => x.state === "on");
+    const fmtT = iso => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }); };
+    const ding = k => { const d = st(`binary_sensor.${k}_ding`); const t = d ? (+d.attributes.lastDing || 0) * 1000 : 0; return t ? "Rang " + agoMs(t) : "No rings recorded"; };
+    const health = [["Alarm base station", "binary_sensor.estepona_base_station_tamper"], ["Range extender", "binary_sensor.estepona_range_extender_tamper"],
+      ["Keypad", "binary_sensor.entrance_hall_keypad_tamper"], ["Outdoor siren", "binary_sensor.outdoor_siren_55705_tamper"]].map(([n, e]) => ({ n, s: st(e) })).filter(x => x.s);
+    return `<section class="view security-view">
+      <div class="sec-status ${tone}" role="status">
+        <span class="sec-shield">${icon("shield")}</span>
+        <div class="grow"><b>${esc(headline)}</b><small>${alarm ? "Alarm " + esc(alarmLabel(alarm)) : ""} · ${contacts.length - open.length}/${contacts.length} doors &amp; windows closed · ${cams.length - offlineCams.length}/${cams.length} cameras online${lowBat.length ? ` · ${lowBat.length} low batter${lowBat.length > 1 ? "ies" : "y"}` : ""}</small></div>
+      </div>
+      ${sirenOn.length ? `<div class="sec-alert"><b>Siren sounding: ${sirenOn.map(x => esc(nm(x))).join(", ")}</b><button class="btn btn-primary" data-action="sirens-stop">Stop all sirens</button></div>` : ""}
+      ${privacyOn ? `<div class="sec-priv">${icon("lock")}<span>Privacy mode: indoor cameras aren't detecting motion.</span><button class="btn btn-sm" data-action="privacy">Turn off</button></div>` : ""}
+      ${cams.length ? `<div class="cam-wall">${cams.map(camTile).join("")}</div>` : '<p class="empty">No cameras found yet.</p>'}
+      ${timelineCard()}
+      <div class="grid g-2" style="margin-top:16px">
+        ${contacts.length ? `<article class="card"><div class="card-head"><span class="ico">${icon("lock")}</span><div class="grow"><h3>Doors and windows</h3><div class="row-sub">${open.length ? open.length + " open" : "All closed"}</div></div></div>
+          ${contacts.map(x => `<div class="row"><div class="row-body"><div class="row-title">${esc(x.n)}</div><div class="row-sub">${ok(x.s) ? (x.s.state === "on" ? "Open" : "Closed") + " · " + ago(x.s.last_changed) : "Offline"}${x.tamper && x.tamper.state === "on" ? ' · <b style="color:#ff5c6c">tamper</b>' : ""}</div></div>
+            <span class="pill ${!ok(x.s) || (x.tamper && x.tamper.state === "on") ? "bad" : x.s.state === "on" ? "warn" : "ok"}">${!ok(x.s) ? "Offline" : x.s.state === "on" ? "Open" : "Closed"}</span></div>`).join("")}</article>` : ""}
+        <article class="card"><div class="card-head"><span class="ico">${icon("bell")}</span><div class="grow"><h3>Doorbell and gate</h3><div class="row-sub">Visitors</div></div></div>
+          ${st("camera.front_door_live_view") ? `<div class="row"><div class="row-body"><div class="row-title">Front door</div><div class="row-sub">${ding("front_door")}</div></div><button class="btn btn-sm" data-camfull="camera.front_door_live_view">View</button></div>` : ""}
+          ${st("camera.main_gate_live_view") ? `<div class="row"><div class="row-body"><div class="row-title">Main gate</div><div class="row-sub">${ding("main_gate")}</div></div><button class="btn btn-sm" data-camfull="camera.main_gate_live_view">View</button>${find("gate") ? `<button class="btn btn-sm btn-primary" data-action="gate">Open gate</button>` : ""}</div>` : ""}
+        </article>
+        ${alarm ? `<article class="card alarm-card ${triggered ? "is-bad" : ""}"><div class="card-head"><span class="ico">${icon("shield")}</span><div class="grow"><h3>Alarm</h3><div class="row-sub">${esc(alarmLabel(alarm))}${alarm.attributes.ArmedTime && aState !== "disarmed" ? " · armed " + esc(fmtT(alarm.attributes.ArmedTime)) : alarm.attributes.DisarmedTime ? " · disarmed " + esc(fmtT(alarm.attributes.DisarmedTime)) : ""}</div></div>
+            <span class="pill ${aState === "disarmed" ? "ok" : triggered ? "bad" : "warn"}">${esc(alarmLabel(alarm))}</span></div>
+          <div class="alarm-btns">
+            <button class="btn ${aState === "armed_home" ? "is-on" : ""}" data-alarm="alarm_arm_home" ${aState === "armed_home" ? "disabled" : ""}>Arm home</button>
+            <button class="btn ${aState === "armed_away" ? "is-on" : ""}" data-alarm="alarm_arm_away" ${aState === "armed_away" ? "disabled" : ""}>Arm away</button>
+            <button class="btn ${aState === "disarmed" ? "is-on" : ""}" data-alarm="alarm_disarm" ${aState === "disarmed" ? "disabled" : ""}>Disarm</button></div>
+          <p class="row-sub" style="margin-top:8px">Each button asks you to confirm first.</p></article>` : ""}
+        <article class="card"><div class="card-head"><span class="ico">${icon("lock")}</span><div class="grow"><h3>Privacy mode</h3><div class="row-sub">${privacyOn ? "On · indoor cameras not detecting motion" : "Off · all cameras detecting motion"}</div></div>
+          <button class="switch" role="switch" aria-checked="${privacyOn}" aria-label="Privacy mode" data-action="privacy"></button></div>
+          <p class="row-sub">Turns off motion detection on the Conservatory, Hallway and Downstairs cameras while you're home. Outdoor cameras keep watching.</p></article>
+        ${sirens.length ? `<article class="card"><div class="card-head"><span class="ico" style="--tint:var(--coral)">${icon("siren")}</span><div class="grow"><h3>Sirens</h3><div class="row-sub">${sirenOn.length ? "Sounding" : `${sirens.length} sirens · silent`}</div></div></div>
+          <button class="btn" data-action="sirens-ask" style="width:100%">Sound a siren…</button>
+          ${sirenOn.length ? `<button class="btn btn-primary" data-action="sirens-stop" style="width:100%;margin-top:8px">Stop all sirens</button>` : ""}</article>` : ""}
+        <article class="card"><div class="card-head"><span class="ico">${icon("sensor")}</span><div class="grow"><h3>System health</h3><div class="row-sub">${tampers.length || offlineCams.length || lowBat.length ? "Needs attention" : "All healthy"}</div></div></div>
+          ${health.map(x => `<div class="row"><div class="row-body"><div class="row-title">${esc(x.n)}</div></div><span class="pill ${!ok(x.s) ? "warn" : x.s.state === "on" ? "bad" : "ok"}">${!ok(x.s) ? "Offline" : x.s.state === "on" ? "Tamper" : "OK"}</span></div>`).join("")}
+          ${infos.map(x => `<div class="row"><div class="row-body"><div class="row-title">${esc(camName(x.c))} camera</div></div><span class="pill ${!ok(x.c) ? "warn" : x.i.battery !== null && x.i.battery <= 25 ? "warn" : "ok"}">${!ok(x.c) ? "Offline" : x.i.battery !== null ? x.i.battery + "%" : "OK"}</span></div>`).join("")}
+        </article>
+      </div>
       ${intruderCard()}
-      <details class="how"><summary>How it works</summary><p class="note">${icon("info")}<span>Snapshots show each camera's latest event; Live view streams now; Last recording plays the newest Ring Protect clip. The bedroom Echo Show camera can't be shown here; Amazon offers no way to share it.</span></p></details>
+      <details class="how"><summary>How it works</summary><p class="note">${icon("info")}<span>Tap a camera for its picture, live view, last recording and a fresh snapshot; ⋯ for its settings. Activity comes from Home Assistant's history of the last two days. Alarm buttons and sirens always ask you to confirm first.</span></p></details>
     </section>`;
   }
-
+  function alarmAsk(service) {
+    const a = all("alarm_control_panel")[0]; if (!a) return;
+    const label = { alarm_arm_home: "Arm the alarm in Home mode", alarm_arm_away: "Arm the alarm in Away mode", alarm_disarm: "Disarm the alarm" }[service];
+    sheet(`<span class="ico big-ico">${icon("shield")}</span><h2>${label}?</h2>
+      <p>${service === "alarm_disarm" ? "The Ring alarm will stop watching the doors and windows." : "The Ring alarm will start watching. Make sure the doors and windows are closed."}</p>
+      <div class="acts"><button class="btn" data-action="close" id="sheet-cancel">Cancel</button><button class="btn btn-primary" data-action="alarm-go" data-svc="${service}">${service === "alarm_disarm" ? "Disarm" : "Arm now"}</button></div>`);
+    $("#sheet-cancel").focus();
+  }
+  function sirensAsk() {
+    const list = [...["conservatory", "hallway", "downstairs", "terrace"].map(k => st(`siren.${k}_siren`)), st("switch.outdoor_siren_55705")].filter(Boolean);
+    sheet(`<span class="ico big-ico" style="--tint:var(--coral)">${icon("siren")}</span><h2>Sound a siren</h2>
+      <p>Sirens are very loud. Press and hold a button for two seconds to sound it.</p>
+      <div class="siren-list">${list.map(x => `<button class="btn siren-hold" data-sirenhold="${x.entity_id}"><span class="fill"></span><span>${esc(nm(x).replace(/\s*siren\s*\d*/i, "") || nm(x))}</span></button>`).join("")}</div>
+      <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Cancel</button></div>`);
+  }
   function viewGates() {
     const g = find("gate"), cam = find("gateCamera");
     return `<section class="view">
@@ -2419,7 +2541,7 @@
 
   // ---------- events ----------
   document.addEventListener("click", ev => {
-    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-shuffle],[data-repeat],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],[data-scene],#jmic");
+    const t = ev.target.closest("[data-toggle],[data-action],[data-area],[data-temp],[data-hvac],[data-fan],[data-ac],[data-acquick],[data-acstep],[data-media],[data-shuffle],[data-repeat],[data-live],[data-clip],[data-colour],[data-ask],[data-askgo],[data-upd-now],[data-upd-later],[data-upd-skip],[data-scene],[data-camfull],[data-camset],[data-camsnap],[data-alarm],[data-tlcam],#jmic");
     if (!t) return;
     const d = t.dataset;
     try { recordUse(usageKey(d, t)); } catch { /* never block the button */ }
@@ -2471,6 +2593,11 @@
     if (d.shuffle) { svc("media_player", "shuffle_set", { shuffle: t.getAttribute("aria-pressed") !== "true" }, { entity_id: d.shuffle }); return; }
     if (d.repeat) { const nx = { off: "all", all: "one", one: "off" }[d.now] || "all"; svc("media_player", "repeat_set", { repeat: nx }, { entity_id: d.repeat }).then(() => toast(nx === "off" ? "Repeat off" : nx === "one" ? "Repeat this song" : "Repeat all")); return; }
     if (d.live) { liveView(d.live); return; }
+    if (d.camfull) { camFull(d.camfull); return; }
+    if (d.camset) { camSettings(d.camset); return; }
+    if (d.camsnap) { svc("button", "press", {}, { entity_id: d.camsnap }).then(() => toast("Snapshot requested; the picture updates in a few seconds")).catch(() => {}); return; }
+    if (d.alarm) { alarmAsk(d.alarm); return; }
+    if (d.tlcam !== undefined) { tl.cam = d.tlcam; lastHtml = ""; render(false); return; }
     if (d.clip) { clipView(d.clip); return; }
     if (d.colour) { colourSheet(d.colour); return; }
     const a = d.action;
@@ -2504,6 +2631,16 @@
     else if (a === "ms-clear") { ev.preventDefault(); ms.q = ""; ms.res = null; ms.sel = null; ms.err = ""; const i = $("#music-q"); if (i) i.value = ""; lastHtml = ""; render(false); }
     else if (a === "night") { ev.preventDefault();   // dims everything that's on to a warm 10%
       svcEach("light", "turn_on", { brightness_pct: 10, color_temp_kelvin: 2200 }, realLights().filter(x => x.state === "on").map(x => x.entity_id), "night").then(() => toast("Night lights: everything dimmed to a warm 10%")).catch(() => null); }
+    else if (a === "alarm-go") { ev.preventDefault(); closeLayer(); const al = all("alarm_control_panel")[0];
+      if (al) svc("alarm_control_panel", t.dataset.svc, {}, { entity_id: al.entity_id }).then(() => toast(t.dataset.svc === "alarm_disarm" ? "Disarming…" : "Arming…")).catch(() => {}); }
+    else if (a === "privacy") { ev.preventDefault(); const on = INDOOR_CAMS.every(k => (st(`switch.${k}_motion_detection`) || {}).state === "off");
+      const ids = INDOOR_CAMS.flatMap(k => [`switch.${k}_motion_detection`, `switch.${k}_motion_detection_2`]).filter(st);
+      svcEach("switch", on ? "turn_on" : "turn_off", {}, ids, "privacy mode").then(() => toast(on ? "Privacy mode off: all cameras detecting motion" : "Privacy mode on: indoor cameras not detecting motion")).catch(() => null); }
+    else if (a === "sirens-ask") { ev.preventDefault(); sirensAsk(); }
+    else if (a === "sirens-stop") { ev.preventDefault();
+      const ids = ["conservatory", "hallway", "downstairs", "terrace"].map(k => `siren.${k}_siren`).filter(st), sw2 = ["switch.outdoor_siren_55705"].filter(st);
+      Promise.all([svcEach("siren", "turn_off", {}, ids), svcEach("switch", "turn_off", {}, sw2)]).then(() => toast("Sirens stopped")).catch(() => null); }
+    else if (a === "tl-more") { ev.preventDefault(); tl.more = !tl.more; lastHtml = ""; render(false); }
     else if (a === "spk-toggle") { ev.preventDefault(); spkOpen = !spkOpen; lastHtml = ""; render(false); }
     else if (a === "sys-details") { ev.preventDefault(); sysOpen = !sysOpen; try { localStorage.setItem("finca.sysOpen", sysOpen ? "1" : "0"); } catch { /* fine */ } lastHtml = ""; render(false); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
@@ -2530,6 +2667,13 @@
   document.addEventListener("click", ev => { const j = ev.target.closest("[data-jump]"); if (!j || hold.fired) return;
     const el = document.getElementById(j.dataset.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash-room"); setTimeout(() => el.classList.remove("flash-room"), 1200); } });
   const hold = { t: 0, fired: false, x: 0, y: 0 };
+  // Sirens (26 Nov): only after a confirmation screen AND a 2-second press; letting go early cancels.
+  let sirenT = 0;
+  document.addEventListener("pointerdown", ev => { const b = ev.target.closest && ev.target.closest("[data-sirenhold]"); if (!b) return;
+    b.classList.add("holding"); clearTimeout(sirenT);
+    sirenT = setTimeout(() => { b.classList.remove("holding"); const id = b.dataset.sirenhold; closeLayer();
+      (domainOf(id) === "siren" ? svc("siren", "turn_on", {}, { entity_id: id }) : svc("switch", "turn_on", {}, { entity_id: id })).then(() => toast("Siren sounding. Stop it from the Security page.")).catch(() => {}); }, 2000); }, true);
+  ["pointerup", "pointercancel", "pointerleave"].forEach(t => document.addEventListener(t, () => { clearTimeout(sirenT); document.querySelectorAll(".siren-hold.holding").forEach(x => x.classList.remove("holding")); }, true));
   document.addEventListener("pointerdown", ev => { const h = ev.target.closest && ev.target.closest("[data-hold]"); hold.fired = false; clearTimeout(hold.t); if (!h) return;
     hold.x = ev.clientX; hold.y = ev.clientY;
     hold.t = setTimeout(() => { hold.fired = true; const [kind, val] = [h.dataset.hold.split(":")[0], h.dataset.hold.slice(h.dataset.hold.indexOf(":") + 1)];
@@ -2693,6 +2837,7 @@
     if (t.dataset.bri) setBrightness(t.dataset.bri.split(","), +t.value, t);
     if (t.dataset.seek) { np.drag = false; svc("media_player", "media_seek", { seek_position: +t.value }, { entity_id: t.dataset.seek }); }
     if (t.dataset.vol) setVolumeSafely(t);
+    if (t.dataset.number) svc("number", "set_value", { value: +t.value }, { entity_id: t.dataset.number }).catch(() => null);
     if (t.dataset.groupvol) svcEach("media_player", "volume_set", { volume_level: +t.value / 100 }, t.dataset.groupvol.split(","), "group volume").catch(() => null);
     if (t.id === "jreply") mem.set("jarvis.reply", t.value);
     if (t.dataset.roomFor) updateDevice(t.dataset.roomFor, { area_id: t.value || null }, t.value ? `Moved to ${(store.areas[t.value] || {}).name || "room"}` : "Removed from its room");
