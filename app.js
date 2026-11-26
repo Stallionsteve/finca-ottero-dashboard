@@ -1214,6 +1214,44 @@
       lib.at = Date.now(); lastHtml = ""; render(false);
     } catch { lib.at = Date.now() - 13 * 60000; } finally { lib.busy = false; }
   }
+  // 26 Nov (owner): "Recently played" shelf (albums and playlists, newest first) from Music Assistant's own history.
+  const recent = { at: 0, items: null, busy: false };
+  async function loadRecent() {
+    if (recent.busy || Date.now() - recent.at < 10 * 60000) return;
+    recent.busy = true;
+    try {
+      if (store.mode === "demo") recent.items = ["Xmas Vibes", "80s Mix", "Grease", "Good Good Things"].map((n, i) => ({ name: n, uri: "demo://rec" + i, image: "", media_type: i % 2 ? "playlist" : "album", kind: i % 2 ? "Playlist" : "Album" }));
+      else {
+        if (!ms.entry) { const e = await store.conn.sendMessagePromise({ type: "config_entries/get", domain: "music_assistant" }); ms.entry = (e.find(x => x.state === "loaded") || e[0] || {}).entry_id; }
+        const get = mt => store.conn.sendMessagePromise({ type: "call_service", domain: "music_assistant", service: "get_library",
+          service_data: { config_entry_id: ms.entry, media_type: mt, order_by: "last_played_desc", limit: 8 }, return_response: true }).then(r => ((r.response || {}).items || [])).catch(() => []);
+        const [pls, albs] = await Promise.all([get("playlist"), get("album")]);
+        const p2 = pls.filter(x => !GENERATED.test(x.name) && !/^liked songs/i.test(x.name)).map(x => ({ ...x, kind: "Playlist" })), a2 = albs.map(x => ({ ...x, kind: "Album" }));
+        const out = []; for (let i = 0; out.length < 10 && (i < p2.length || i < a2.length); i++) { if (p2[i]) out.push(p2[i]); if (a2[i]) out.push(a2[i]); }
+        recent.items = out.slice(0, 10);
+      }
+      recent.at = Date.now(); lastHtml = ""; render(false);
+    } catch { recent.at = Date.now() - 8 * 60000; } finally { recent.busy = false; }
+  }
+  function recentRow() {
+    loadRecent();
+    if (!recent.items || !recent.items.length) return "";
+    ms.recRows = recent.items;
+    return `<div class="lib-head"><span>Recently played</span><small>tap one, then Play</small></div>
+      <div class="lib-row" role="listbox" aria-label="Recently played">${recent.items.map((x, i) => `<button type="button" class="lib-card" role="option" data-reci="${i}" aria-selected="${!!ms.sel && ms.sel.uri === x.uri}">
+        <span class="lib-art"><img src="${esc(x.image || FALLBACK_ART)}" alt="" loading="lazy"><span class="ms-ck" aria-hidden="true">${icon("check")}</span></span>
+        <span class="lib-name">${esc(x.name.trim())}</span><small class="lib-kind">${x.kind}</small></button>`).join("")}</div>`;
+  }
+  // 26 Nov (owner): one-tap moods; they play on the speakers chosen below, starting at 25% like everything else.
+  const MOODS = [["sun", "Morning", "fav:Talk Radio Europe"], ["music", "Dinner", "q:dinner jazz"], ["music", "Chill", "q:chill vibes"],
+                 ["party", "Party", "party"], ["music", "Christmas", "q:christmas hits"]];
+  function moodRow() {
+    const favs = sonosFavs();
+    return `<div class="mood-row" role="group" aria-label="Quick moods">${MOODS.map(([ic, label, what]) => {
+      if (what.startsWith("fav:")) { const f = favs.find(x => x.toLowerCase().startsWith(what.slice(4).toLowerCase())); return f ? `<button type="button" class="mood" data-favplay="${esc(f)}">${icon(ic)}${label}</button>` : ""; }
+      if (what === "party") { const p = st("switch.finca_party_mode"); return p ? `<button type="button" class="mood ${p.state === "on" ? "is-on" : ""}" data-toggle="${p.entity_id}">${icon(ic)}${label}</button>` : ""; }
+      return `<button type="button" class="mood" data-mood="${esc(what.slice(2))}">${icon(ic)}${label}</button>`; }).join("")}</div>`;
+  }
   function libraryRow() {
     loadLibrary();
     if (!lib.items || !lib.items.length) return "";
@@ -1227,21 +1265,23 @@
   function msResults() {
     if (ms.err) return `<p class="row-sub ms-msg">${esc(ms.err)}</p>`;
     if (!ms.res) return "";
-    const r = ms.res, rows = [
-      ...(r.artists || []).slice(0, 1).map(x => ({ ...x, kind: "Artist" })),
-      ...(r.albums || []).slice(0, 3).map(x => ({ ...x, kind: "Album" })),
-      ...(r.playlists || []).slice(0, 2).map(x => ({ ...x, kind: "Playlist" })),
-      ...(r.tracks || []).slice(0, 4).map(x => ({ ...x, kind: "Song" }))];
+    const r = ms.res, tab = ms.tab || "all";
+    const by_ = { songs: (r.tracks || []).map(x => ({ ...x, kind: "Song" })), artists: (r.artists || []).map(x => ({ ...x, kind: "Artist" })),
+                  albums: (r.albums || []).map(x => ({ ...x, kind: "Album" })), playlists: (r.playlists || []).map(x => ({ ...x, kind: "Playlist" })) };
+    const rows = tab === "all" ? [...by_.artists.slice(0, 1), ...by_.playlists.slice(0, 2), ...by_.albums.slice(0, 2), ...by_.songs.slice(0, 3)] : by_[tab].slice(0, 8);
     ms.rows = rows;
+    // 26 Nov (owner): tabs like Spotify; each result has its own Play button
+    const tabs = `<div class="ms-tabs" role="tablist">${[["all", "All"], ["songs", "Songs"], ["artists", "Artists"], ["albums", "Albums"], ["playlists", "Playlists"]]
+      .filter(([k]) => k === "all" || by_[k].length).map(([k, l]) => `<button type="button" role="tab" class="ms-tab" data-mstab="${k}" aria-selected="${tab === k}">${l}</button>`).join("")}</div>`;
     if (!rows.length) return `<p class="row-sub ms-msg">Nothing found for “${esc(ms.q)}”.</p>`;
     const by = x => (x.artists || []).map(a => a.name).filter(Boolean).slice(0, 2).join(", ") || x.owner || "";
-    return `<div class="ms-res" role="listbox" aria-label="Search results">${rows.map((x, i) => `<button type="button" class="ms-row" role="option" data-msi="${i}" aria-selected="${!!ms.sel && ms.sel.uri === x.uri}">
+    return tabs + `<div class="ms-res" role="listbox" aria-label="Search results">${rows.map((x, i) => `<button type="button" class="ms-row" role="option" data-msi="${i}" aria-selected="${!!ms.sel && ms.sel.uri === x.uri}">
         <img src="${esc(x.image || FALLBACK_ART)}" alt="" loading="lazy" class="${x.image ? "" : "fallback"} ${x.kind === "Artist" ? "round" : ""}">
         <span class="ms-t"><b>${esc(x.name)}</b><small>${x.kind}${by(x) && x.kind !== "Artist" ? " · " + esc(by(x)) : ""}</small></span>
-        <span class="ms-ck" aria-hidden="true">${icon("check")}</span></button>`).join("")}</div>`;
+        <span class="ms-ck" aria-hidden="true">${icon("check")}</span><span class="ms-go" role="button" tabindex="0" data-msgo="${i}" aria-label="Play ${esc(x.name)}">${icon("play")}</span></button>`).join("")}</div>`;
   }
   async function msSearch(q) {
-    ms.q = q; ms.sel = null; ms.err = ""; ms.res = null;
+    ms.q = q; ms.sel = null; ms.err = ""; ms.res = null; ms.tab = "all";
     if (!q) { lastHtml = ""; render(false); return; }
     ms.busy = true; lastHtml = ""; render(false);
     try {
@@ -1252,7 +1292,7 @@
       } else {
         if (!ms.entry) { const e = await store.conn.sendMessagePromise({ type: "config_entries/get", domain: "music_assistant" }); ms.entry = (e.find(x => x.state === "loaded") || e[0] || {}).entry_id; }
         const r = await store.conn.sendMessagePromise({ type: "call_service", domain: "music_assistant", service: "search",
-          service_data: { config_entry_id: ms.entry, name: q, limit: 5 }, return_response: true });
+          service_data: { config_entry_id: ms.entry, name: q, limit: 8 }, return_response: true });
         ms.res = r.response || {};
       }
     } catch (e) { ms.err = "Search didn't work just now (Spotify may be busy). Try again in a minute, or press Play to try anyway."; }
@@ -1278,7 +1318,9 @@
         <div class="ms-bar"><input id="music-q" type="search" placeholder="Search Spotify: artist, song or playlist…" aria-label="Search Spotify" autocomplete="off" enterkeyhint="search" value="${esc(ms.q)}">
           ${ms.q || ms.res || ms.err ? `<button class="btn btn-ghost ms-x" type="button" data-action="ms-clear" aria-label="Clear the search">✕</button>` : ""}
           <button class="btn" type="submit" aria-label="Search">${ms.busy ? '<span class="spin" aria-hidden="true"></span>' : icon("search")}</button></div>
+        ${moodRow()}
         ${msResults()}
+        ${recentRow()}
         ${libraryRow()}
         <div class="seg-row" id="music-where" role="group" aria-label="Speakers (pick one or more)" style="flex:1 1 100%;flex-wrap:wrap">
           ${ma.filter(s => !isS1(s.entity_id)).map(s => `<button type="button" class="seg-btn" data-spk="${s.entity_id}" aria-pressed="${picked.includes(s.entity_id)}">${s.entity_id === "media_player.tv_room" ? icon("tv").replace("<svg", '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:4px"') : ""}${esc(names[s.entity_id] || nm(s).replace(/ - Sonos.*$/, "").replace(/^65PUS.*$/i, "TV"))}</button>`).join("")}
@@ -1296,10 +1338,9 @@
         const isRadio = f => /radio|bbc|1xtra|wfmu|\bfm\b|talk|capital|heart|smooth|apple music 1|kiss|global/i.test(f);
         const card = f => `<button type="button" class="st-card" data-favplay="${esc(f)}"><span class="st-ico">${icon(isRadio(f) ? "radio" : "music")}</span><span class="st-name">${esc(f.replace(/\s*\(official\)/i, ""))}</span></button>`;
         const radio = fav.filter(isRadio), lists = fav.filter(f => !isRadio(f));
-        return `<details class="st-pick" ${mem.get("st.open", "") === "1" ? "open" : ""}><summary><span class="st-sum">${icon("radio")}Radio &amp; Sonos favourites</span><span class="st-count">${fav.length}</span></summary>
-          <div class="st-sec">Radio</div><div class="st-grid">${radio.map(card).join("")}</div>
-          ${lists.length ? `<div class="st-sec">Playlists and songs</div><div class="st-grid">${lists.map(card).join("")}</div>` : ""}
-        </details>`; })()}
+        // 26 Nov (owner): shelves like Spotify instead of a fold-out list
+        return `<div class="lib-head" style="margin-top:14px"><span>Radio</span><small>tap to play on the chosen speakers</small></div><div class="shelf">${radio.map(card).join("")}</div>
+          ${lists.length ? `<div class="lib-head"><span>Sonos favourites</span><small>${lists.length}</small></div><div class="shelf">${lists.map(card).join("")}</div>` : ""}`; })()}
     </article>`;
   }
   // Now playing (14 Nov): big cover art, title, a progress bar you can drag to skip along, back / play-pause / next.
@@ -1316,19 +1357,23 @@
     if (playing && a.media_position_updated_at) pos += (Date.now() - Date.parse(a.media_position_updated_at)) / 1000;
     return Math.min(pos, a.media_duration || pos);
   }
-  function nowPlaying() {
-    // Sonos players first (they carry the position), Music Assistant copies as a fallback; one per group (the leader).
+  function npCurrent() {
     const cands = all("media_player").filter(s => (store.mode === "demo" || ["sonos", "music_assistant"].includes(platformOf(s.entity_id))) && ok(s)
       && ["playing", "paused"].includes(s.state) && s.attributes.media_title
       && !((s.attributes.group_members || [])[0] && s.attributes.group_members[0] !== s.entity_id));
     const rank = s => (s.state === "playing" ? 0 : 2) + (platformOf(s.entity_id) === "sonos" ? 0 : 1);
-    const s = cands.sort((a, b) => rank(a) - rank(b) || Date.parse(b.last_changed) - Date.parse(a.last_changed))[0];
+    return cands.sort((a, b) => rank(a) - rank(b) || Date.parse(b.last_changed) - Date.parse(a.last_changed))[0] || null;
+  }
+  const spkName = e => { const x = st(e); return e === "media_player.tv_room_tv_room" || e === "media_player.tv_room" ? "Living room" : x ? nm(x).replace(/ - Sonos.*$/, "") : e; };
+  function nowPlaying() {
+    // Sonos players first (they carry the position), Music Assistant copies as a fallback; one per group (the leader).
+    const s = npCurrent();
     if (!s) return "";
     const a = s.attributes, playing = s.state === "playing", dur = a.media_duration || 0;
     const pos = Math.floor((a.media_position || 0) / 5) * 5, pct = dur ? (pos / dur) * 100 : 0;   // ticker fills in the live second
-    const where = (a.group_members || []).length > 1 ? `${nm(s)} + ${a.group_members.length - 1} more` : nm(s);
+    const where = (a.group_members || []).length > 1 ? a.group_members.map(spkName).join(" · ") : spkName(s.entity_id);   // 26 Nov: every speaker by name
     const vol = Math.round((a.volume_level || 0) * 100);
-    return `<article class="card nowplay" style="--tint:var(--coral);margin-bottom:16px">
+    return `<article class="card nowplay hero" style="--tint:var(--coral);margin-bottom:16px;${a.entity_picture ? `--art:url('${esc(artUrl(a.entity_picture))}')` : ""}">
       <div class="np-art"><img src="${a.entity_picture ? esc(artUrl(a.entity_picture)) : FALLBACK_ART}" alt="" ${a.entity_picture ? "" : 'class="fallback"'}></div>
       <div class="np-body">
         <div class="row-sub">${playing ? "Now playing" : "Paused"} · ${esc(where.replace(/ - Sonos.*$/, ""))}</div>
@@ -1346,6 +1391,39 @@
           ${a.volume_level !== undefined ? `<input type="range" min="0" max="100" value="${vol}" style="--val:${vol}%" data-vol="${s.entity_id}" aria-label="Volume">` : ""}
         </div>
       </div>
+    </article>`;
+  }
+  // 26 Nov (owner): a slim player at the top of every other page: art, song, play/pause; tap to open Music.
+  function miniPlayer() {
+    const s = npCurrent(); if (!s) return "";
+    const a = s.attributes, playing = s.state === "playing";
+    return `<div class="mini-player" role="region" aria-label="Now playing">
+      <a class="mini-open" href="#media"><img src="${a.entity_picture ? esc(artUrl(a.entity_picture)) : FALLBACK_ART}" alt="" ${a.entity_picture ? "" : 'class="fallback"'}>
+        <span class="mini-t"><b>${esc(a.media_title)}</b><small>${esc(a.media_artist || a.media_channel || spkName(s.entity_id))}</small></span></a>
+      <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="${playing ? "Pause" : "Play"}">${icon(playing ? "pause" : "play")}</button>
+      <button class="round-btn" data-media="${s.entity_id}" data-cmd="media_next_track" aria-label="Next track">${icon("next")}</button>
+    </div>`;
+  }
+  // 26 Nov (owner): one Speakers panel (like Sonos / Spotify Connect) instead of a tile per speaker.
+  let spkOpen = false;
+  function speakersCard(players) {
+    const active = players.filter(s => ["playing", "paused"].includes(s.state) && s.attributes.media_title);
+    const shown = spkOpen ? players : active;
+    const lead = npCurrent(), grp = lead ? (lead.attributes.group_members || []).filter(e => st(e)) : [];
+    const gv = grp.length > 1 ? Math.round(grp.reduce((n, e) => n + ((st(e).attributes.volume_level) || 0), 0) / grp.length * 100) : null;
+    const row = s => { const a = s.attributes, vol = Math.round((a.volume_level || 0) * 100), on = ["playing", "paused"].includes(s.state) && a.media_title;
+      return `<div class="spk-row ${on ? "" : "idle"}">
+        <div class="spk-name"><b>${esc(spkName(s.entity_id))}</b><small>${!ok(s) ? "offline" : on ? esc((s.state === "paused" ? "Paused · " : "") + a.media_title) : "Not playing"}</small></div>
+        ${ok(s) ? `<button class="round-btn" data-media="${s.entity_id}" data-cmd="media_play_pause" aria-label="Play or pause ${esc(spkName(s.entity_id))}">${icon(s.state === "playing" ? "pause" : "play")}</button>
+        ${a.volume_level !== undefined ? `<input type="range" id="vol-${s.entity_id.replace(/\W/g, "")}" min="0" max="100" value="${vol}" style="--val:${vol}%" data-vol="${s.entity_id}" aria-label="${esc(spkName(s.entity_id))} volume">` : ""}` : ""}
+      </div>`; };
+    return `<article class="card speakers-card">
+      <div class="card-head"><span class="ico" style="--tint:var(--coral)">${icon("music")}</span>
+        <div class="grow"><h3>Speakers</h3><div class="row-sub">${active.length ? `${active.length} playing` : "Nothing playing"} · ${players.length} speakers</div></div>
+        <button class="btn btn-sm" data-action="spk-toggle" aria-expanded="${spkOpen}">${spkOpen ? "Show playing only" : "Show all"}</button></div>
+      ${gv !== null ? `<div class="spk-row group"><div class="spk-name"><b>Whole group</b><small>${grp.map(spkName).join(" · ")}</small></div>
+        <input type="range" id="vol-group" min="0" max="100" value="${gv}" style="--val:${gv}%" data-groupvol="${esc(grp.join(","))}" aria-label="Group volume"></div>` : ""}
+      ${shown.length ? shown.map(row).join("") : '<p class="row-sub" style="margin:8px 0 0">Nothing is playing. Tap Show all for every speaker.</p>'}
     </article>`;
   }
   function viewMedia() {
@@ -1381,7 +1459,7 @@
           return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${mv.entity_id}">${icon("film")}${on ? "End movie mode" : "Movie mode"}</button>`; })()}</div>
       ${nowPlaying()}
       ${musicSearch()}
-      ${players.length ? `<div class="grid g-2">${players.map(card).join("")}</div>` : '<p class="empty">No speakers found.</p>'}
+      ${players.length ? speakersCard(players) : '<p class="empty">No speakers found.</p>'}
     </section>`;
   }
 
@@ -1602,7 +1680,7 @@
     const v = current();
     renderNav(location.hash === "#jarvis" ? "jarvis" : v);
     // Keep already-loaded camera pictures: rebuilding them on every redraw made them blink.
-    const html = VIEWS[v]();
+    const html = (v !== "media" ? miniPlayer() : "") + VIEWS[v]();
     // Nothing on this page changed (e.g. only a solar reading moved while on Security): leave it alone.
     if (!scroll && html === lastHtml && v === lastView) return;
     const samePage = !scroll && v === lastView && $("#main").firstElementChild;
@@ -2356,6 +2434,7 @@
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
     else if (a === "dev-toggle") { ev.preventDefault(); devOpen = !devOpen; lastHtml = ""; render(false); }
     else if (a === "ms-clear") { ev.preventDefault(); ms.q = ""; ms.res = null; ms.sel = null; ms.err = ""; const i = $("#music-q"); if (i) i.value = ""; lastHtml = ""; render(false); }
+    else if (a === "spk-toggle") { ev.preventDefault(); spkOpen = !spkOpen; lastHtml = ""; render(false); }
     else if (a === "sys-details") { ev.preventDefault(); sysOpen = !sysOpen; try { localStorage.setItem("finca.sysOpen", sysOpen ? "1" : "0"); } catch { /* fine */ } lastHtml = ""; render(false); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
     else if (a === "close-nav") closeLayer();
@@ -2378,6 +2457,14 @@
     const q = $("#music-q").value.trim(); $("#music-q").blur(); msSearch(q);
   });
   document.addEventListener("click", ev => {
+    const tb = ev.target.closest("[data-mstab]");
+    if (tb) { ms.tab = tb.dataset.mstab; lastHtml = ""; render(false); return; }
+    const go = ev.target.closest("[data-msgo]");
+    if (go) { ev.preventDefault(); ev.stopPropagation(); const x = (ms.rows || [])[+go.dataset.msgo]; if (!x) return; ms.sel = x; lastHtml = ""; render(false); setTimeout(() => { const b = $("[data-msplay]"); if (b) b.click(); }, 60); return; }
+    const md = ev.target.closest("[data-mood]");
+    if (md) { ms.q = md.dataset.mood; ms.sel = null; ms.res = null; const i = $("#music-q"); if (i) i.value = ms.q; setTimeout(() => { const b = $("[data-msplay]"); if (b) b.click(); }, 60); return; }
+    const rc = ev.target.closest("[data-reci]");
+    if (rc) { const x = (ms.recRows || [])[+rc.dataset.reci]; if (!x) return; ms.sel = ms.sel && ms.sel.uri === x.uri ? null : x; lastHtml = ""; render(false); return; }
     const lb = ev.target.closest("[data-libi]");
     if (lb) { const x = (ms.libRows || [])[+lb.dataset.libi]; if (!x) return; ms.sel = ms.sel && ms.sel.uri === x.uri ? null : x; lastHtml = ""; render(false); return; }
     const r = ev.target.closest("[data-msi]");
@@ -2522,6 +2609,7 @@
     if (t.dataset.bri) setBrightness(t.dataset.bri.split(","), +t.value, t);
     if (t.dataset.seek) { np.drag = false; svc("media_player", "media_seek", { seek_position: +t.value }, { entity_id: t.dataset.seek }); }
     if (t.dataset.vol) setVolumeSafely(t);
+    if (t.dataset.groupvol) svcEach("media_player", "volume_set", { volume_level: +t.value / 100 }, t.dataset.groupvol.split(","), "group volume").catch(() => null);
     if (t.id === "jreply") mem.set("jarvis.reply", t.value);
     if (t.dataset.roomFor) updateDevice(t.dataset.roomFor, { area_id: t.value || null }, t.value ? `Moved to ${(store.areas[t.value] || {}).name || "room"}` : "Removed from its room");
     if (pending) setTimeout(() => render(false), 50);
