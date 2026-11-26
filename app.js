@@ -723,7 +723,7 @@
     "dimmed": ["#b07a3c", "#6e4a22"], "bright": ["#fff4d6", "#ffe7a8"], "nightlight": ["#ff8a3c", "#7a3a10"], "read": ["#fff1d0", "#ffe2a0"], "concentrate": ["#e8f3ff", "#ffffff"], "energize": ["#d6ecff", "#ffffff"] };
   function scenePal(name) { const k = String(name).toLowerCase().replace(/\s*\d+$/, "").trim(); if (SCENE_PAL[k]) return SCENE_PAL[k];
     let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360; return [`hsl(${h} 80% 62%)`, `hsl(${(h + 50) % 360} 80% 58%)`]; }
-  const OUTDOOR = /terrace|front ?door|pool|garden|outside|outdoor|driveway|gate|patio|dome/i;
+  const OUTDOOR = /terrace|front ?door|pool|garden|outside|outdoor|driveway|gate|patio|dome|^bar$/i;   // 26 Nov (owner): the bar is an outdoor bar
   // Why a room's lights are on, shown on its card.
   function roomBadges(b) {
     const out = [];
