@@ -1070,3 +1070,41 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .speakers-card .round-btn { width: 40px; height: 40px; }
 .mini-player { top: var(--hdr, 68px); background: #0d1433; box-shadow: 0 -8px 0 0 #0b1030, 0 10px 24px -12px rgba(0,0,0,.7); }
 @supports (backdrop-filter: blur(1px)) { .mini-player { background: rgba(13, 20, 51, .97); } }
+
+/* ===== 26 Nov (owner): professional Lighting page (Hue-style) ===== */
+.card.group { transition: opacity .3s ease, box-shadow .3s ease, border-color .3s ease, filter .3s ease; }
+.card.group.is-on {
+  background:
+    linear-gradient(var(--hc), var(--hc)) left 12px top 12px / 16px 1.5px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) left 12px top 12px / 1.5px 16px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right 12px bottom 12px / 16px 1.5px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right 12px bottom 12px / 1.5px 16px no-repeat,
+    linear-gradient(125deg, color-mix(in srgb, var(--glow1, var(--sunset)) 30%, transparent), color-mix(in srgb, var(--glow2, var(--glow1, var(--sunset))) 14%, transparent) 75%),
+    linear-gradient(160deg, var(--glass-hi), var(--glass));
+  border-color: color-mix(in srgb, var(--glow1, var(--sunset)) 55%, transparent);
+  box-shadow: 0 18px 50px -24px var(--glow1, var(--sunset));
+}
+.card.group.is-off { filter: saturate(.55); opacity: .82; }
+.card.group.flash-room { box-shadow: 0 0 0 2px var(--turq), 0 0 30px -4px var(--turq) !important; }
+button.bulb.on i { background: var(--dot, var(--sunset)) !important; box-shadow: 0 0 8px var(--dot, var(--sunset)) !important; }
+.room-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.room-badge { font-size: 11px; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--turq); background: rgba(46, 230, 214, .07); }
+.scene-tile { flex-direction: column; align-items: stretch; gap: 6px; padding: 6px; width: 104px; min-height: auto; border-radius: 14px; }
+.scene-tile .sw { display: block; height: 44px; border-radius: 10px; position: relative; }
+.scene-tile .sw i { position: absolute; top: 4px; right: 6px; font-style: normal; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.scene-tile .sn { font-size: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scene-tile.is-on { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.8); background: rgba(255,255,255,.08); }
+.mode-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 0 12px; padding-bottom: 2px; }
+.mode-btn { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 8px 15px; border-radius: 999px; border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(255,154,60,.14), rgba(95,212,255,.08)); color: var(--sand); font: inherit; font-size: 14px; cursor: pointer; }
+.mode-btn svg { width: 17px; height: 17px; } .mode-btn.is-on { border-color: var(--sunset); background: color-mix(in srgb, var(--sunset) 24%, transparent); color: #fff; }
+.mode-btn:disabled { opacity: .4; cursor: default; }
+.lit-strip { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 0 14px; padding-bottom: 2px; }
+.lit-label { flex: none; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.lit-chip { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(10, 15, 36, .5); color: var(--sand); font: inherit; font-size: 13px; cursor: pointer; -webkit-touch-callout: none; user-select: none; }
+.lit-chip i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+button.bulb { -webkit-touch-callout: none; user-select: none; }
+.sensors-card .row { padding: 10px 0; border-top: 1px solid var(--line); } .sensors-card .row:first-child { border-top: 0; }
+.sensors-card .warn-row .row-sub { color: var(--warn); }
+.lighting-view .hint { margin: 18px 0 0; text-align: center; opacity: .8; }

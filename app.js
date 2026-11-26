@@ -700,6 +700,38 @@
   }
   // 25 Nov (owner): a room whose lights fall into named sets (Bar 1–5 and Side bar 1–2) gets a row per set, each with
   // its own switch and dimmer, inside the room's card. Sets = names without the trailing number; needs 2+ sets of 2+ lights.
+  // ===== 26 Nov (owner): "make it as professional as Philips Hue" =====
+  // Colour of a light as it is now (colour lights: their RGB; white lights: their colour temperature).
+  function kToRgb(k) { const t = k / 100; let r, g, b;
+    if (t <= 66) { r = 255; g = 99.47 * Math.log(t) - 161.12; b = t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04; }
+    else { r = 329.7 * Math.pow(t - 60, -0.1332); g = 288.12 * Math.pow(t - 60, -0.0755); b = 255; }
+    return [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v)))); }
+  function lightRgb(s) { if (!s || s.state !== "on") return null; const a = s.attributes;
+    if (Array.isArray(a.rgb_color) && a.color_mode !== "color_temp") return a.rgb_color;
+    if (a.color_temp_kelvin) return kToRgb(a.color_temp_kelvin); return Array.isArray(a.rgb_color) ? a.rgb_color : [255, 206, 150]; }
+  const rgbCss = c => `rgb(${c.join(",")})`;
+  function roomColours(b) {
+    const ls = (b.lights.length ? b.lights : (b.group ? [b.group] : [])).filter(x => x && x.state === "on");
+    const cols = ls.map(lightRgb).filter(Boolean), out = [];
+    cols.forEach(c => { if (!out.some(o => Math.abs(o[0] - c[0]) + Math.abs(o[1] - c[1]) + Math.abs(o[2] - c[2]) < 60)) out.push(c); });
+    return out.slice(0, 3);
+  }
+  // Scene previews: Home Assistant doesn't give a Hue scene's colours, so each known scene gets a palette matching its name.
+  const SCENE_PAL = { "honolulu": ["#ff7a3c", "#ff3c8a", "#ffc04d"], "fuchsia frost": ["#e04dff", "#8a6bff", "#ff8ad8"], "rolling hills": ["#7bd36b", "#f5d76e", "#5cc8a8"],
+    "relax": ["#ffb46b", "#ffd9a0"], "cancun": ["#ff9f43", "#00c2d1", "#ff5e7e"], "dreamy dusk": ["#8e6bff", "#ff8ab8", "#ffb36b"], "green": ["#3ddc84", "#1fa96b"],
+    "silverstone": ["#c8d0e0", "#8a96b0", "#5d6a88"], "tropical twilight": ["#ff6b6b", "#8e44ff", "#ffb347"], "crocus": ["#a56bff", "#ffd166"],
+    "dimmed": ["#b07a3c", "#6e4a22"], "bright": ["#fff4d6", "#ffe7a8"], "nightlight": ["#ff8a3c", "#7a3a10"], "read": ["#fff1d0", "#ffe2a0"], "concentrate": ["#e8f3ff", "#ffffff"], "energize": ["#d6ecff", "#ffffff"] };
+  function scenePal(name) { const k = String(name).toLowerCase().replace(/\s*\d+$/, "").trim(); if (SCENE_PAL[k]) return SCENE_PAL[k];
+    let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360; return [`hsl(${h} 80% 62%)`, `hsl(${(h + 50) % 360} 80% 58%)`]; }
+  const OUTDOOR = /terrace|front ?door|pool|garden|outside|outdoor|driveway|gate|patio|dome/i;
+  // Why a room's lights are on, shown on its card.
+  function roomBadges(b) {
+    const out = [];
+    if (b.name === "Bar" && (st("automation.finca_bar_lights_dusk_to_02_00") || {}).state === "on") out.push("Auto · dusk → 02:00");
+    if ((st("switch.finca_holiday_mode") || {}).state === "on") out.push("Holiday lights");
+    if ((st("switch.finca_party_lights") || {}).state === "on" && roomColours(b).length) out.push("Party lights");
+    return out.length ? `<div class="room-badges">${out.map(x => `<span class="room-badge">${esc(x)}</span>`).join("")}</div>` : "";
+  }
   function subGroupRows(b) {
     const sets = new Map();
     b.lights.forEach(s => { const k = nm(s).replace(/\s*\d+\s*$/, "").trim(); if (!sets.has(k)) sets.set(k, []); sets.get(k).push(s); });
@@ -721,19 +753,21 @@
     const master = b.group || members.find(s => s.state === "on" && dimmable(s)) || members.find(dimmable);
     const bri = master && master.attributes.brightness ? Math.round(master.attributes.brightness / 2.55) : 0;
     const ids = (b.group ? [b.group] : members).map(s => s.entity_id).join(",");
-    return `<article class="card group ${anyOn ? "is-on" : ""}">
+    const cols = roomColours(b), g1 = cols[0] ? rgbCss(cols[0]) : "", g2 = cols[1] ? rgbCss(cols[1]) : g1;
+    return `<article class="card group ${anyOn ? "is-on" : "is-off"}" id="room-${esc(b.name.replace(/\W+/g, "-").toLowerCase())}" style="${g1 ? `--glow1:${g1};--glow2:${g2};` : ""}">
       <div class="card-head">
         <span class="ico" style="--tint:var(--sunset)">${icon("bulb")}</span>
         <div class="grow"><h3>${esc(b.name)}</h3><div class="row-sub">${members.length} light${members.length === 1 ? "" : "s"} · ${onCount} on${(() => { const n = members.filter(x => !ok(x)).length; return n ? ` · ${n === members.length ? "all" : n} off at the wall switch?` : ""; })()}</div></div>
         ${[b.group, ...members].some(x => x && (hasColour(x) || hasWhiteTemp(x))) ? `<button class="round-btn colour-btn" data-colour="${esc(b.name)}" aria-label="${esc(b.name)} colour"><span class="swatch" style="background:${swatchOf(b.group || members.find(x => x.state === "on") || members[0])}"></span></button>` : ""}
         <button class="switch" role="switch" aria-checked="${anyOn}" aria-label="${esc(b.name)} lights" data-area="${esc(ids)}" data-room="${esc(b.name)}" style="--tint:var(--sunset)"></button>
       </div>
-      ${master && dimmable(master) ? `<div class="bri">
+      ${roomBadges(b)}
+      ${master && dimmable(master) ? `<div class="bri" ${g1 ? `style="--sunset:${g1}"` : ""}>
         <input type="range" id="bri-${esc(b.name.replace(/\W/g, ""))}" min="1" max="100" value="${bri || 50}" style="--val:${bri || 50}%" data-bri="${esc(ids)}" aria-label="${esc(b.name)} brightness" ${anyOn ? "" : "disabled"}>
         <span class="v">${anyOn ? bri + "%" : "Off"}</span></div>` : ""}
       ${subGroupRows(b)}
       ${sceneChips(b)}
-      ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" ${ok(s) ? "" : 'disabled title="No power: probably switched off at the wall"'} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
+      ${b.lights.length > 1 || b.group ? `<div class="bulbs">${b.lights.map(s => `<button class="bulb ${s.state === "on" ? "on" : ""} ${ok(s) ? "" : "na"}" data-toggle="${s.entity_id}" data-hold="light:${s.entity_id}" ${lightRgb(s) ? `style="--dot:${rgbCss(lightRgb(s))}"` : ""} ${ok(s) ? "" : 'disabled title="No power: probably switched off at the wall"'} aria-pressed="${s.state === "on"}"><i></i>${esc(nm(s).replace(new RegExp("^" + b.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") || nm(s))}</button>`).join("")}</div>` : ""}
     </article>`;
   }
   // 22 Nov (owner): Hue scenes for each room, pulled live from Home Assistant (scene.* in the same area). The active one
@@ -755,26 +789,36 @@
     const list = roomScenes(b.name); if (!list.length) return "";
     const members = b.lights.length ? b.lights : (b.group ? [b.group] : []);
     const cur = activeScene(list, members.some(x => x.state === "on") || (b.group && b.group.state === "on"));
-    return `<div class="scenes" role="group" aria-label="${esc(b.name)} scenes"><span class="scenes-label">Scenes</span>${list.map(x => `<button class="scene-chip ${x.name === cur ? "is-on" : ""}" data-scene="${esc(x.id)}">${x.dyn ? '<i aria-hidden="true">✦</i>' : ""}${esc(x.name)}</button>`).join("")}</div>`;
+    return `<div class="scenes" role="group" aria-label="${esc(b.name)} scenes"><span class="scenes-label">Scenes</span>${list.map(x => { const pal = scenePal(x.name);
+      return `<button class="scene-chip scene-tile ${x.name === cur ? "is-on" : ""}" data-scene="${esc(x.id)}"><span class="sw" style="background:linear-gradient(135deg, ${pal.join(", ")})" aria-hidden="true">${x.dyn ? "<i>✦</i>" : ""}</span><span class="sn">${esc(x.name)}</span></button>`; }).join("")}</div>`;
   }
   function swatchOf(s) {
     if (!s || s.state !== "on") return "conic-gradient(#ff5c5c, #ffd25c, #5cff8a, #5ce1ff, #8a5cff, #ff5cc8, #ff5c5c)";
     const c = s.attributes.rgb_color;
     return c ? `rgb(${c.join(",")})` : "#ffd9a0";
   }
-  function colourSheet(areaName) {
+  function lightSheet(id) {
+    const s = st(id); if (!s) return;
+    const b = lightAreas().find(x => x.lights.some(l => l.entity_id === id)); if (!b) return;
+    colourSheet(b.name, id);
+  }
+  function colourSheet(areaName, onlyId) {
     const b = lightAreas().find(x => x.name === areaName); if (!b) return;
+    const one = onlyId ? st(onlyId) : null;
     const lights = b.lights.filter(x => ok(x) && (hasColour(x) || hasWhiteTemp(x)));
     const all = (b.group ? [b.group] : lights);
-    const anyColour = [...all, ...lights].some(hasColour), anyTemp = [...all, ...lights].some(hasWhiteTemp);
-    const ref = b.group || lights[0];
+    const anyColour = one ? hasColour(one) : [...all, ...lights].some(hasColour), anyTemp = one ? hasWhiteTemp(one) : [...all, ...lights].some(hasWhiteTemp);
+    const ref = one || b.group || lights[0];
     const kMin = Math.max(2000, ...[...all, ...lights].map(x => x.attributes.min_color_temp_kelvin || 2000));
     const kMax = Math.min(6500, ...[...all, ...lights].map(x => x.attributes.max_color_temp_kelvin || 6500));
     const kNow = (ref && ref.attributes.color_temp_kelvin) || Math.round((kMin + kMax) / 2);
-    sheet(`<h2>${esc(areaName)} colour</h2>
-      <label class="row-sub" for="ctarget">Apply to</label>
-      <select class="sel" id="ctarget"><option value="${esc(all.map(x => x.entity_id).join(","))}">Whole room</option>
-        ${lights.map(x => `<option value="${x.entity_id}">${esc(nm(x))}</option>`).join("")}</select>
+    const oneBri = one && one.attributes.brightness ? Math.round(one.attributes.brightness / 2.55) : 0;
+    sheet(`<h2>${esc(one ? nm(one) : areaName + " colour")}</h2>
+      ${one ? `<div class="row" style="padding:0 0 8px"><div class="row-body"><div class="row-sub">${esc(areaName)} · ${ok(one) ? (one.state === "on" ? "On" : "Off") : "No power, probably off at the wall"}</div></div>${ok(one) ? sw(one.entity_id, one.state === "on", nm(one), "sunset") : ""}</div>
+        ${ok(one) && dimmable(one) ? `<div class="bri" ${lightRgb(one) ? `style="--sunset:${rgbCss(lightRgb(one))}"` : ""}><input type="range" id="bri-one" min="1" max="100" value="${oneBri || 50}" style="--val:${oneBri || 50}%" data-bri="${one.entity_id}" aria-label="${esc(nm(one))} brightness"><span class="v">${one.state === "on" ? oneBri + "%" : "Off"}</span></div>` : ""}` : ""}
+      <label class="row-sub" for="ctarget" ${one ? 'style="display:none"' : ""}>Apply to</label>
+      <select class="sel" id="ctarget" ${one ? 'style="display:none"' : ""}><option value="${esc(all.map(x => x.entity_id).join(","))}">Whole room</option>
+        ${lights.map(x => `<option value="${x.entity_id}" ${one && x.entity_id === one.entity_id ? "selected" : ""}>${esc(nm(x))}</option>`).join("")}${one && !lights.includes(one) ? `<option value="${one.entity_id}" selected>${esc(nm(one))}</option>` : ""}</select>
       ${anyColour ? '<div class="wheel" id="wheel" role="slider" aria-label="Colour wheel" tabindex="0"><span class="wheel-dot" id="wheel-dot"></span></div>' : ""}
       ${anyTemp ? `<label class="row-sub" for="ctemp">White: warm to cool</label><input type="range" id="ctemp" class="temp-range" min="${kMin}" max="${kMax}" step="50" value="${kNow}">` : ""}
       <div class="acts" style="grid-template-columns:1fr"><button class="btn" data-action="close">Done</button></div>`);
@@ -816,26 +860,45 @@
       && (store.mode === "demo" ? /hue|motion/i.test(nm(s)) : platformOf(s.entity_id) === "hue") && !hueRoom(s));
     const sensorName = s => nm(s).replace(/\s+motion$/i, "").replace(/^living room temperature\s*$/i, "Living room sensor").trim();
     const lightsOn = realLights().filter(s => s.state === "on").length;
-    return `<section class="view">
+    const lit = areas.filter(b => (b.lights.length ? b.lights : [b.group]).some(x => x && x.state === "on"));
+    const cardId = b => "room-" + b.name.replace(/\W+/g, "-").toLowerCase();
+    const idsOf = b => (b.group ? [b.group] : b.lights).map(x => x.entity_id).join(",");
+    const mode = (id, ic, label, onLabel) => { const m = st(id); if (!m) return ""; const on = m.state === "on";
+      return `<button class="mode-btn ${on ? "is-on" : ""}" data-toggle="${id}" aria-pressed="${on}">${icon(ic)}<span>${on ? onLabel : label}</span></button>`; };
+    const indoor = areas.filter(b => !OUTDOOR.test(b.name)), outdoor = areas.filter(b => OUTDOOR.test(b.name));
+    // battery of the same Hue device as a motion sensor
+    const batteryOf = s => { const e = store.ents[s.entity_id]; if (!e || !e.device_id) return null;
+      const bt = Object.values(store.ents).find(x => x.device_id === e.device_id && /battery/.test(x.entity_id) && domainOf(x.entity_id) === "sensor");
+      const v = bt && st(bt.entity_id); return v && ok(v) && isFinite(+v.state) ? Math.round(+v.state) : null; };
+    return `<section class="view lighting-view">
       <div class="page-head">
-        <div><h1>Lighting</h1><p>${areas.length} rooms · ${lightsOn} lights on</p></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${(() => { const pl = st("switch.finca_party_lights"); if (!pl) return ""; const on = pl.state === "on";
-            return `<button class="btn ${on ? "" : "btn-primary"}" data-toggle="${pl.entity_id}">${icon("party")}${on ? "Stop party lights" : "Party lights"}</button>`; })()}
-          <button class="btn" data-action="all-off" ${lightsOn ? "" : "disabled"}>${icon("moon")}All lights off</button>
-        </div>
+        <div><h1>Lighting</h1><p>${lightsOn ? `${lightsOn} light${lightsOn === 1 ? "" : "s"} on · ${lit.length} room${lit.length === 1 ? "" : "s"}` : "Everything is off"}</p></div>
       </div>
+      <div class="mode-row" role="group" aria-label="Quick modes">
+        <button class="mode-btn" data-action="all-off" ${lightsOn ? "" : "disabled"}>${icon("moon")}<span>All off</span></button>
+        <button class="mode-btn" data-action="night" ${lightsOn ? "" : "disabled"}>${icon("moon")}<span>Night</span></button>
+        ${mode("switch.finca_party_lights", "party", "Party lights", "Stop party lights")}
+        ${mode("switch.finca_romantic_mode", "heart", "Romantic", "End romantic")}
+        ${mode("switch.finca_movie_mode", "film", "Movie", "End movie")}
+      </div>
+      ${lit.length ? `<div class="lit-strip" aria-label="Rooms lit now"><span class="lit-label">Lit now</span>${lit.map(b => { const c = roomColours(b)[0];
+        return `<button class="lit-chip" data-jump="${cardId(b)}" data-hold="off:${esc(idsOf(b))}" title="Tap to go there · press and hold to switch off"><i style="background:${c ? rgbCss(c) : "var(--sunset)"}"></i>${esc(b.name)}</button>`; }).join("")}</div>` : ""}
       ${(st("switch.finca_party_lights") || {}).state === "on" ? `<p class="note">${icon("music")}<span>Party lights are on. Pick your own music on the <a href="#media">Music</a> page.</span></p>` : ""}
-      ${areas.length ? `<div class="grid g-2">${areas.map(areaCard).join("")}</div>` : '<p class="empty">No lights found in Home Assistant yet. Add the Philips Hue integration in Settings → Devices &amp; services.</p>'}
+      ${!areas.length ? '<p class="empty">No lights found in Home Assistant yet. Add the Philips Hue integration in Settings → Devices &amp; services.</p>' : ""}
+      ${indoor.length ? `<h2 class="section">Indoor</h2><div class="grid g-2">${indoor.map(areaCard).join("")}</div>` : ""}
       ${extra.length ? `<h2 class="section">Bedroom lights</h2><div class="card">
         ${extra.map(s => `<div class="row"><span class="ico" style="--tint:var(--sunset)">${icon(/fire/i.test(nm(s)) ? "fire" : "bulb")}</span>
           <div class="row-body"><div class="row-title">${esc(swName(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "On" : "Off") : "Offline"}${swArea(s) ? " · " + esc(swArea(s)) : ""}</div></div>
           ${ok(s) ? sw(s.entity_id, s.state === "on", swName(s), "sunset") : '<span class="pill warn">Offline</span>'}</div>`).join("")}
       </div>` : ""}
-      ${sensors.length ? `<h2 class="section">Hue motion sensors</h2><div class="grid g-2">
-        ${sensors.map(s => `<div class="card"><div class="row" style="padding:0"><span class="ico">${icon("sensor")}</span>
-          <div class="row-body"><div class="row-title">${esc(sensorName(s))}</div><div class="row-sub">${ok(s) ? (s.state === "on" ? "Motion now" : "Last motion " + ago(s.last_changed)) : "Offline"}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div></div></div>`).join("")}
+      ${outdoor.length ? `<h2 class="section">Outdoor</h2><div class="grid g-2">${outdoor.map(areaCard).join("")}</div>` : ""}
+      ${sensors.length ? `<h2 class="section">Hue motion sensors</h2><div class="card sensors-card">
+        ${sensors.map(s => { const bat = batteryOf(s), dead = !ok(s), low = bat !== null && bat <= 20;
+          return `<div class="row ${dead ? "warn-row" : ""}"><span class="ico">${icon("sensor")}</span>
+          <div class="row-body"><div class="row-title">${esc(sensorName(s))}</div><div class="row-sub">${dead ? "Not reporting · check its battery" : s.state === "on" ? "Motion now" : "Last motion " + ago(s.last_changed)}${areaOf(s.entity_id) ? " · " + esc(areaOf(s.entity_id)) : ""}</div></div>
+          ${bat !== null ? `<span class="pill ${low ? "warn" : "ok"}">${bat}%</span>` : dead ? '<span class="pill warn">Offline</span>' : ""}</div>`; }).join("")}
       </div>` : ""}
+      <p class="row-sub hint">Tip: press and hold a single light for its own brightness and colour; press and hold a "Lit now" room to switch it off.</p>
     </section>`;
   }
 
@@ -2439,6 +2502,8 @@
     else if (a === "sys-enable") { ev.preventDefault(); enableSysHealth(); }
     else if (a === "dev-toggle") { ev.preventDefault(); devOpen = !devOpen; lastHtml = ""; render(false); }
     else if (a === "ms-clear") { ev.preventDefault(); ms.q = ""; ms.res = null; ms.sel = null; ms.err = ""; const i = $("#music-q"); if (i) i.value = ""; lastHtml = ""; render(false); }
+    else if (a === "night") { ev.preventDefault();   // dims everything that's on to a warm 10%
+      svcEach("light", "turn_on", { brightness_pct: 10, color_temp_kelvin: 2200 }, realLights().filter(x => x.state === "on").map(x => x.entity_id), "night").then(() => toast("Night lights: everything dimmed to a warm 10%")).catch(() => null); }
     else if (a === "spk-toggle") { ev.preventDefault(); spkOpen = !spkOpen; lastHtml = ""; render(false); }
     else if (a === "sys-details") { ev.preventDefault(); sysOpen = !sysOpen; try { localStorage.setItem("finca.sysOpen", sysOpen ? "1" : "0"); } catch { /* fine */ } lastHtml = ""; render(false); }
     else if (a === "fix-recovery") { ev.preventDefault(); fixRecovery(); }
@@ -2461,6 +2526,20 @@
     ev.preventDefault();
     const q = $("#music-q").value.trim(); $("#music-q").blur(); msSearch(q);
   });
+  // 26 Nov: "Lit now" chips jump to their room; press and hold (half a second) a light or a lit room for more.
+  document.addEventListener("click", ev => { const j = ev.target.closest("[data-jump]"); if (!j || hold.fired) return;
+    const el = document.getElementById(j.dataset.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash-room"); setTimeout(() => el.classList.remove("flash-room"), 1200); } });
+  const hold = { t: 0, fired: false, x: 0, y: 0 };
+  document.addEventListener("pointerdown", ev => { const h = ev.target.closest && ev.target.closest("[data-hold]"); hold.fired = false; clearTimeout(hold.t); if (!h) return;
+    hold.x = ev.clientX; hold.y = ev.clientY;
+    hold.t = setTimeout(() => { hold.fired = true; const [kind, val] = [h.dataset.hold.split(":")[0], h.dataset.hold.slice(h.dataset.hold.indexOf(":") + 1)];
+      try { navigator.vibrate && navigator.vibrate(15); } catch { /* optional */ }
+      if (kind === "light") lightSheet(val);
+      if (kind === "off") svcEach("light", "turn_off", {}, val.split(","), "room off").then(() => toast("Switched off")).catch(() => null); }, 550); }, true);
+  ["pointerup", "pointercancel", "pointerleave"].forEach(t => document.addEventListener(t, () => clearTimeout(hold.t), true));
+  document.addEventListener("pointermove", ev => { if (Math.abs(ev.clientX - hold.x) + Math.abs(ev.clientY - hold.y) > 12) clearTimeout(hold.t); }, true);
+  document.addEventListener("click", ev => { if (hold.fired && ev.target.closest && ev.target.closest("[data-hold]")) { ev.preventDefault(); ev.stopImmediatePropagation(); hold.fired = false; } }, true);
+  document.addEventListener("contextmenu", ev => { if (ev.target.closest && ev.target.closest("[data-hold]")) ev.preventDefault(); }, true);
   document.addEventListener("click", ev => {
     const tb = ev.target.closest("[data-mstab]");
     if (tb) { ms.tab = tb.dataset.mstab; lastHtml = ""; render(false); return; }
