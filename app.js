@@ -1394,6 +1394,9 @@
     </article>`;
   }
   // 26 Nov (owner): a slim player at the top of every other page: art, song, play/pause; tap to open Music.
+  // keeps the mini player just under the header when the page scrolls (header height differs on phone and tablet)
+  const setHdr = () => { const h = document.querySelector("header"); if (h) document.documentElement.style.setProperty("--hdr", h.getBoundingClientRect().height + "px"); };
+  window.addEventListener("resize", setHdr); setTimeout(setHdr, 0); setTimeout(setHdr, 1500);
   function miniPlayer() {
     const s = npCurrent(); if (!s) return "";
     const a = s.attributes, playing = s.state === "playing";

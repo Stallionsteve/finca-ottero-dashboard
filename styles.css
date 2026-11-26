@@ -1068,3 +1068,5 @@ input[type=range] { touch-action: pan-y; -webkit-user-select: none; user-select:
 .speakers-card .spk-name { display: flex; flex-direction: column; min-width: 0; }
 .speakers-card .spk-name small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .speakers-card .round-btn { width: 40px; height: 40px; }
+.mini-player { top: var(--hdr, 68px); background: #0d1433; box-shadow: 0 -8px 0 0 #0b1030, 0 10px 24px -12px rgba(0,0,0,.7); }
+@supports (backdrop-filter: blur(1px)) { .mini-player { background: rgba(13, 20, 51, .97); } }
