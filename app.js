@@ -1838,7 +1838,7 @@
   function loadPI() {
     if (window.FincaPI) return Promise.resolve();
     if (piLoading) return piLoading;
-    window.FincaAPI = { store, icon, esc, toast, svc, mem };
+    window.FincaAPI = { store, icon, esc, toast, svc, mem, sheet, closeLayer };
     const v = (window.FINCA_VERSION || "").split(" ")[0] || Date.now();
     piLoading = new Promise((ok, bad) => {
       const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "pi.css?v=" + v; document.head.appendChild(css);

@@ -10,3 +10,12 @@
 /* 21 Nov: on the other pages a grid gap sits under each heading; here the next card overlapped the heading's letters. */
 #pi-root h2.section { margin: 24px 0 12px; line-height: 1.4; }
 #pi-root .card + .card { margin-top: 14px; }
+/* 27 Nov (owner): trading, ideas, search, daily suggestion */
+.pi-trade { grid-template-columns: 1fr 1fr !important; margin-top: 12px; }
+.pi-quick { display: flex; gap: 8px; margin: 10px 0; }
+.pi-ideas { display: grid; gap: 8px; }
+.pi-idea { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(10, 15, 36, .35); }
+.pi-sugg { border-color: color-mix(in srgb, var(--coral) 60%, transparent); margin-top: 16px; }
+.pi-sugg.hold { border-color: var(--line); }
+.pi-sugg-what { font-size: 18px; font-weight: 600; margin: 10px 0 4px; }
+#pi-amt { font-size: 20px; margin: 6px 0; }
