@@ -19,3 +19,4 @@
 .pi-sugg.hold { border-color: var(--line); }
 .pi-sugg-what { font-size: 18px; font-weight: 600; margin: 10px 0 4px; }
 #pi-amt { font-size: 20px; margin: 6px 0; }
+.pi-sugg-acts { grid-template-columns: 1fr 1fr 1fr !important; } @media (max-width: 560px) { .pi-sugg-acts { grid-template-columns: 1fr !important; } }

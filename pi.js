@@ -175,26 +175,51 @@
     const p = positions(), sellAmt = sell && pi.quotes[sell[1]] ? ((p.pos[sell[1]] || {}).units || 0) * eur(pi.quotes[sell[1]].price) * (+sell[2] / 100) : 0;
     return { code, why, sell: sell ? { sym: sell[1], pct: +sell[2], eur: sellAmt } : null, buy, cash: p.cash, answered, hold: code === "HOLD" };
   }
-  async function acceptSuggestion() {
-    const s = suggestion(); if (!s || s.hold) return;
+  // total value now (cash + holdings at verified prices), for the 30% cap on any single buy
+  function totalValue() { const p = positions(); let v = p.cash; Object.entries(p.pos).forEach(([k, x]) => { const q = pi.quotes[k]; if (q && pi.fx && x.units > 0) v += x.units * eur(q.price); }); return v; }
+  async function acceptSuggestion(auto) {
+    const s = suggestion(); if (!s || s.hold) return "";
     let money = 0; const done = [];
-    if (s.sell) { const e = await trade("sell", s.sell.sym, s.sell.eur, `Suggestion: sell ${s.sell.pct}%`); if (!e) return; money = e.eur; done.push(`sold €${fmt(e.eur)} of ${nameOf(s.sell.sym)}`); }
-    if (s.buy) { const amt = s.sell ? money : positions().cash; const e = amt > 0.5 ? await trade("buy", s.buy, amt, "Suggestion") : null; if (e) done.push(`bought €${fmt(e.eur)} of ${nameOf(s.buy)}`); }
+    if (s.sell) { const e = await trade("sell", s.sell.sym, s.sell.eur, `Suggestion: sell ${s.sell.pct}%${auto ? " (approved with Face ID)" : ""}`); if (!e) return ""; money = e.eur; done.push(`sold €${fmt(e.eur)} of ${nameOf(s.sell.sym)}`); }
+    if (s.buy) { const cap = totalValue() * 0.30, want = s.sell ? money : positions().cash, amt = Math.min(want, cap);
+      const e = amt > 0.5 ? await trade("buy", s.buy, amt, `Suggestion${auto ? " (approved with Face ID)" : ""}`) : null;
+      if (e) done.push(`bought €${fmt(e.eur)} of ${nameOf(s.buy)}${want - amt > 0.5 ? ` (capped at 30% of the portfolio; €${fmt(want - amt)} stays as cash)` : ""}`); }
     await decide("done");
-    F.toast(done.length ? "Done (virtual): " + done.join(", ") + "." : "Nothing could be traded right now.");
-    draw();
+    const summary = done.length ? "Done (virtual money): " + done.join(", ") + "." : "Nothing could be traded right now (no up-to-date price).";
+    if (!auto) F.toast(summary);
+    draw(); return summary;
+  }
+  // Called by the app when the iPhone (Face ID) approval arrives. Only a Finca app that holds the portfolio acts, and only once.
+  async function executeApproved() {
+    if (F.store.mode === "demo" || !F.store.conn) return;
+    if (!pi.ledger) await load(); if (!started()) return;
+    if (Date.now() - pi.quotesAt > 5 * 60000) await fetchQuotes();
+    const dec = helperVal(DEC), s = suggestion(); if (!s || s.hold || !/\|approved$/.test(dec) || dec.split("|")[1] !== s.code) return;
+    const mine = `${dec.split("|")[0]}|${s.code}|executing-${Math.random().toString(36).slice(2, 7)}`;
+    await setHelper(DEC, "Finca portfolio decision", mine); await new Promise(r => setTimeout(r, 1500));
+    if (helperVal(DEC) !== mine) return;                       // another device took it
+    const summary = await acceptSuggestion(true);
+    F.store.conn.sendMessagePromise({ type: "fire_event", event_type: "finca_pi_done", event_data: { summary } }).catch(() => {});
   }
   async function decide(what) { const s = suggestion(); if (!s) return; const v = `${new Date().toISOString().slice(0, 10)}|${s.code}|${what}`;
     if (F.store.mode === "demo") pi.demoDec = v; else await setHelper(DEC, "Finca portfolio decision", v); }
   function suggestionCard() {
     const s = suggestion(); if (!s) return "";
     if (s.hold) return `<article class="card pi-sugg hold"><div class="card-head"><span class="ico">${F.icon("check")}</span><div class="grow"><h3>Today's check: hold</h3><div class="row-sub">${F.esc(s.why)}</div></div></div></article>`;
+    const dec = F.store.mode === "demo" ? (pi.demoDec || "") : helperVal(DEC);
+    if (dec.split("|")[1] === s.code && /approved$|executing/.test(dec)) return `<article class="card pi-sugg"><div class="card-head"><span class="ico">${F.icon("check")}</span><div class="grow"><h3>Approved on your iPhone</h3><div class="row-sub">Carrying it out…</div></div></div></article>`;
     if (s.answered) return "";
     const what = [s.sell ? `Sell ${s.sell.pct}% of ${nameOf(s.sell.sym)} (≈ €${fmt(s.sell.eur)})` : "", s.buy ? (s.sell ? `buy ${nameOf(s.buy)} with it` : `Buy ${nameOf(s.buy)} with your €${fmt(s.cash)} of virtual cash`) : ""].filter(Boolean).join(" and ");
     return `<article class="card pi-sugg"><div class="card-head"><span class="ico" style="--tint:var(--coral)">${F.icon("sun")}</span><div class="grow"><h3>Today's suggestion</h3><div class="row-sub">Worked out from your holdings and the latest prices</div></div></div>
       <p class="pi-sugg-what">${F.esc(what)}.</p><p class="row-sub">Why: ${F.esc(s.why)}</p>
-      <div class="acts"><button class="btn" data-pi="sugg-no">Not today</button><button class="btn btn-primary" data-pi="sugg-yes">Yes, do it</button></div>
-      <p class="row-sub" style="margin-top:6px">Simple rules, not advice: trim anything oversized, take profit at +30%, limit a loss at −20%, buy the tracked stock nearest its 52-week high.</p></article>`;
+      <div class="acts pi-sugg-acts"><button class="btn btn-primary" data-pi="sugg-phone">${F.icon("lock")}Send to my iPhone (Face ID)</button><button class="btn" data-pi="sugg-explain">${F.icon("mic")}Jarvis, explain</button><button class="btn btn-ghost" data-pi="sugg-no">Not today</button></div>
+      <p class="row-sub" style="margin-top:6px">Simple rules, not advice: sell a holding down 15%; once up 20%, sell half if it slips 8% from its best (let winners run); trim anything oversized; buy the tracked stock nearest its 52-week high unless the news says avoid; no single buy over 30% of the portfolio; no new trades after a 10% bad week.</p></article>`;
+  }
+  // News check (twice a day) shown under the suggestion
+  function researchHtml() {
+    const r = F.store.states["sensor.finca_pi_research"], items = r && r.attributes && r.attributes.items; if (!items || !Object.keys(items).length) return "";
+    return `<h2 class="section">News check</h2><article class="card"><p class="row-sub" style="margin:0 0 6px">Checked ${F.esc(r.state)} · done twice a day so the suggestion is ready before you ask</p>
+      ${Object.entries(items).map(([k, x]) => `<div class="row"><div class="row-body"><div class="row-title">${F.esc(nameOf(k))} <small class="row-sub">${k}</small></div><div class="row-sub">${F.esc(x.why || "")}</div></div><span class="pill ${x.v === "AVOID" ? "warn" : "ok"}">${x.v === "AVOID" ? "Avoid" : "OK"}</span></div>`).join("")}</article>`;
   }
   function ideasHtml(held) {
     const ideas = tracked().filter(sym => !held.includes(sym)).map(sym => { const q = pi.quotes[sym]; return { sym, q, hcp: q && q.hcp !== null ? q.hcp : -999 }; })
@@ -244,6 +269,7 @@
         </article>
       </div>
       ${started() ? suggestionCard() : ""}
+      ${started() ? researchHtml() : ""}
       <h2 class="section">Holdings</h2>
       <div class="grid g-2">${holdings.map(h => { const s = status(h.q); return `<article class="card">
           <div class="card-head"><span class="ico">${F.icon("chart")}</span><div class="grow"><h3>${F.esc(COMPANY[h.sym] || h.sym)} <small class="row-sub">${h.sym}</small></h3>
@@ -281,6 +307,9 @@
       await setWatch([...watchList(), sym]); F.toast(`Tracking ${nameOf(sym)}. Its price arrives in about 20 seconds.`); draw(); return; }
     if (a === "untrack") { await setWatch(watchList().filter(x => x !== sym)); draw(); return; }
     if (a === "sugg-yes") { b.disabled = true; await acceptSuggestion(); return; }
+    if (a === "sugg-phone") { if (F.store.mode === "demo") { F.toast("Demo: on the real system your iPhone gets the request; Approve needs Face ID."); return; }
+      F.svc("script", "turn_on", {}, { entity_id: "script.finca_pi_request_approval" }).then(() => F.toast("Sent to your iPhone. Approve there with Face ID.")).catch(() => {}); return; }
+    if (a === "sugg-explain") { F.ask("What's my stock suggestion?"); return; }
     if (a === "sugg-no") { await decide("dismissed"); F.toast("OK, not today."); draw(); return; }
     if (b.dataset.pi === "start") { if (!started()) await startPortfolio(); }
     if (b.dataset.pi === "target") {
@@ -290,8 +319,10 @@
   });
 
   window.FincaPI = {
+    executeApproved,
     async mount() {
       if (!pi.ledger) await load();
+      if (F.store.mode !== "demo") { if (!F.store.states[DEC]) setHelper(DEC, "Finca portfolio decision", "none"); if (!F.store.states[WATCH]) setHelper(WATCH, "Finca portfolio watch", DEFAULT_WATCH); }
       if (Date.now() - pi.quotesAt > 5 * 60000) await fetchQuotes();
       draw();
       syncToHA();

@@ -1834,11 +1834,11 @@
   }
   document.addEventListener("click", ev => { const b = ev.target.closest("[data-otter]"); if (!b || !fm.map) return; const o = otters().find(x => x.id === b.dataset.otter); if (o) fm.map.setView([o.lat, o.lon], 16); });
   // ---------- Portfolio Intelligence (16 Nov): separate module, loaded only when opened; the rest of the app never depends on it ----------
-  let piLoading = null;
+  let piLoading = null, piApproved = "";
   function loadPI() {
     if (window.FincaPI) return Promise.resolve();
     if (piLoading) return piLoading;
-    window.FincaAPI = { store, icon, esc, toast, svc, mem, sheet, closeLayer };
+    window.FincaAPI = { store, icon, esc, toast, svc, mem, sheet, closeLayer, ask: q => { try { openJarvis(); } catch { /* fine */ } setTimeout(() => ask(q), 300); } };
     const v = (window.FINCA_VERSION || "").split(" ")[0] || Date.now();
     piLoading = new Promise((ok, bad) => {
       const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "pi.css?v=" + v; document.head.appendChild(css);
@@ -3011,7 +3011,10 @@
       else render(true);
       if (d.sheet === "weather") setTimeout(() => { wx.sheet = true; sheet(weatherCard(true) || '<p>Loading the forecast…</p>', true); }, 350);
     }, { type: "subscribe_events", event_type: "finca_show_page" }).then(() => { J.pageSub = true; }).catch(() => { J.pageSub = false; });
-    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); try { tabletRelay(); } catch { /* never block updates */ } if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
+    H.subscribeEntities(conn, ents2 => { store.states = ents2; scheduleRender(); try { tabletRelay(); } catch { /* never block updates */ }
+      // 27 Nov (owner): a portfolio suggestion approved with Face ID on the iPhone is carried out by the app (which holds the portfolio)
+      try { const dv = (ents2["input_text.finca_portfolio_decision"] || {}).state || "";
+        if (/\|approved$/.test(dv) && dv !== piApproved) { piApproved = dv; loadPI().then(() => window.FincaPI.executeApproved && window.FincaPI.executeApproved()).catch(() => { piApproved = ""; }); } } catch { /* never block updates */ } if (!booted) { booted = true; if (location.hash !== "#talk" && !hud.on) setTimeout(jarvisBoot, 400); } });
   }
 
   // "System at work" background layer (15 Nov): drawn once, animated by CSS only (cheap for the phone).
