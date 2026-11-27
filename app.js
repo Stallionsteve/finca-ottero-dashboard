@@ -985,10 +985,17 @@
   // Ring-MQTT (13 Nov) adds camera.<name>_snapshot next to Ring's camera.<name>_live_view: one card per camera,
   // picture from the snapshot (refreshed on every motion/ding), live stream and clips from the live view.
   const snapFor = s => st(s.entity_id.replace(/_live_view$/, "_snapshot"));
+  // 27 Nov (owner): the picture shown is the newest one: the snapshot camera (ring-mqtt, can go stale) or the Ring
+  // camera's own image (a frame from the latest recording)
+  function camImg(s) {
+    const snap = /_live_view$/.test(s.entity_id) ? snapFor(s) : null;
+    if (!(snap && ok(snap) && snap.attributes.entity_picture)) return s;
+    const snapAt = (+snap.attributes.timestamp || 0) * 1000, last = camInfo(camKey(s)).last;
+    return ok(s) && s.attributes.entity_picture && last > snapAt + 60000 ? s : snap;
+  }
   const cameraList = () => all("camera").filter(c => !(/_snapshot$/.test(c.entity_id) && st(c.entity_id.replace(/_snapshot$/, "_live_view"))));
   function camCard(s) {
-    const snap = /_live_view$/.test(s.entity_id) ? snapFor(s) : null;
-    const img = snap && ok(snap) && snap.attributes.entity_picture ? snap : s;
+    const img = camImg(s);
     const pic = img.attributes.entity_picture;
     const updated = img.last_changed;
     return `<article class="card">
@@ -1021,14 +1028,14 @@
   function camInfo(k) {
     const m = st(`binary_sensor.${k}_motion`), bat = st(`sensor.${k}_battery`);
     const lm = m ? (+m.attributes.lastMotion || 0) * 1000 : 0, la = st(`sensor.${k}_last_activity`);
-    const last = lm || (la && ok(la) ? Date.parse(la.state) : 0);
+    // 27 Nov (owner): the ring-mqtt motion sensors stopped updating on 22 Nov, so the newest of both sources is used
+    const last = Math.max(lm, la && ok(la) ? Date.parse(la.state) || 0 : 0);
     return { k, motionNow: !!(m && m.state === "on" && lm > Date.now() - 120000), last, battery: bat && ok(bat) && isFinite(+bat.state) ? Math.round(+bat.state) : null,
       detect: st(`switch.${k}_motion_detection`), warn: st(`switch.${k}_motion_warning`), siren: st(`siren.${k}_siren`), snapBtn: st(`button.${k}_take_snapshot`), vol: st(`number.${k}_volume`) };
   }
   const agoMs = t => t ? ago(new Date(t).toISOString()) : "";
   function camTile(s) {
-    const k = camKey(s), info = camInfo(k), snap = /_live_view$/.test(s.entity_id) ? snapFor(s) : null;
-    const img = snap && ok(snap) && snap.attributes.entity_picture ? snap : s, pic = img.attributes.entity_picture;
+    const k = camKey(s), info = camInfo(k), img = camImg(s), pic = img.attributes.entity_picture;
     const off = info.detect && info.detect.state === "off";
     return `<article class="cam-tile ${info.motionNow ? "motion" : ""} ${ok(s) ? "" : "offline"}">
       <button class="cam-pic" data-camfull="${s.entity_id}" aria-label="Open ${esc(camName(s))}">
@@ -1040,7 +1047,7 @@
     </article>`;
   }
   function camFull(id) {
-    const s = st(id); if (!s) return; const k = camKey(s), info = camInfo(k), snap = snapFor(s) || s;
+    const s = st(id); if (!s) return; const k = camKey(s), info = camInfo(k), snap = camImg(s);
     const pic = (snap.attributes || {}).entity_picture;
     sheet(`<h2>${esc(camName(s))}</h2>
       <div class="cam-view">${pic ? `<img src="${esc(artUrl(pic))}" alt="Latest image">` : `<div class="ph">${icon("camera")}<span>No picture yet</span></div>`}</div>
