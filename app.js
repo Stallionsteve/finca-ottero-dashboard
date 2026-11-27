@@ -456,8 +456,12 @@
             k.push(+v.toFixed(1)); g.push(+(v * 1.35).toFixed(1)); d.push(day % 2 ? 95 : 265); }
           return { hourly: { time: t, wind_speed_10m: k, wind_gusts_10m: g, wind_direction_10m: d } }; });
       } else {
-        const r = await fetch("/local/finca-ottero/wind/coast.json?t=" + Date.now(), { cache: "no-store" });
-        data = r.ok ? await r.json() : null;
+        // 27 Nov (owner): coast.json stopped updating on 24 Nov (two identical downloads at once); coast_daily.json has the same
+        // data and is the one Home Assistant now keeps fresh. Whichever of the two starts latest is used.
+        const get = async f => { try { const r = await fetch(`/local/finca-ottero/wind/${f}?t=${Date.now()}`, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch { return null; } };
+        const start = x => { const a = Array.isArray(x) ? x[0] : x; return (a && a.hourly && a.hourly.time && a.hourly.time[0]) || ""; };
+        const [d1, d2] = await Promise.all([get("coast_daily.json"), get("coast.json")]);
+        data = start(d2) > start(d1) ? d2 : (d1 || d2);
       }
       let wv = null;
       if (store.mode === "demo") wv = WIND_SPOTS.map((sp, n) => { const t = [], h = []; const st = new Date(); st.setHours(0, 0, 0, 0);
