@@ -165,27 +165,41 @@
   function preview() { const t = ui.trade, i = document.getElementById("pi-amt"), o = document.getElementById("pi-prev"); if (!t || !i || !o) return;
     const a = parseFloat(i.value) || 0; o.textContent = t.pxEur ? `≈ ${fmt(a / t.pxEur, 4)} shares${a > t.max + 0.005 ? ` · more than the €${fmt(t.max)} available` : ""}` : ""; }
   // ---- the daily suggestion (worked out in Home Assistant; see tools/pi_suggest.py) ----
+  // 27 Nov (owner): a suggestion is a PLAN of up to 5 changes ("S:SYM:pct:rule;S:...;B:SYM;B:SYM"), approved all at once.
+  // The old single format "S:SYM:pct>B:SYM" is still understood.
+  const RULE = { stop: "down 15%: cut the loss", trail: "slipping from a big gain: lock in half", trim: "too big a share of the portfolio" };
   function suggestion() {
-    const st = (F.store.states[SUGG] || {}).state || (F.store.mode === "demo" ? "S:TTWO:20>B:NVDA|Take-Two is 66% of the portfolio, too much in one company. Nvidia is 12% below its 52-week high, the strongest of the stocks you track." : "");
+    const st = (F.store.states[SUGG] || {}).state || (F.store.mode === "demo" ? "S:TTWO:20:trim;S:TSLA:100:stop;B:NVDA;B:MSFT|Take-Two is 66% of the portfolio, trim it; Tesla is down 17%, cut the loss; buy Nvidia and Microsoft, the strongest you track." : "");
     if (!st || !st.includes("|")) return null;
-    const [code, ...rest] = st.split("|"), why = rest.join("|"), parts = code.split(">");
-    const sell = parts[0].startsWith("S:") ? parts[0].split(":") : null, buyPart = parts.find(x => x.startsWith("B:")), buy = buyPart ? buyPart.split(":")[1] : null;
+    const [code, ...rest] = st.split("|"), why = rest.join("|"), p = positions();
+    const steps = code.split(/[;>]/).filter(Boolean);
+    const sells = steps.filter(x => x.startsWith("S:")).map(x => { const k = x.split(":"), sym = k[1], pct = +k[2] || 0;
+      const eurAmt = pi.quotes[sym] && pi.fx ? ((p.pos[sym] || {}).units || 0) * eur(pi.quotes[sym].price) * pct / 100 : 0;
+      return { sym, pct, rule: k[3] || "", eur: eurAmt }; });
+    const buys = steps.filter(x => x.startsWith("B:")).map(x => x.split(":")[1]);
     const dec = F.store.mode === "demo" ? (pi.demoDec || "") : helperVal(DEC), [dDate, dCode] = dec.split("|");
     const answered = dCode === code && dDate && (Date.now() - Date.parse(dDate)) < 7 * 864e5;
-    const p = positions(), sellAmt = sell && pi.quotes[sell[1]] ? ((p.pos[sell[1]] || {}).units || 0) * eur(pi.quotes[sell[1]].price) * (+sell[2] / 100) : 0;
-    return { code, why, sell: sell ? { sym: sell[1], pct: +sell[2], eur: sellAmt } : null, buy, cash: p.cash, answered, hold: code === "HOLD" };
+    return { code, why, sells, buys, count: sells.length + buys.length, cash: p.cash, answered, hold: code === "HOLD" || !(sells.length + buys.length) };
+  }
+  // plain-words list of the changes, in the order they are carried out
+  function planLines(s) {
+    const freed = s.sells.reduce((t, x) => t + x.eur, 0), money = freed + (s.cash >= 10 ? s.cash : 0);
+    return [...s.sells.map(x => `Sell ${x.pct === 100 ? "all" : x.pct + "%"} of ${nameOf(x.sym)} (≈ €${fmt(x.eur)})${RULE[x.rule] ? ` · ${RULE[x.rule]}` : ""}`),
+      ...s.buys.map(b => `Buy ${nameOf(b)} (≈ €${fmt(money / s.buys.length)}${!s.sells.length ? " of your virtual cash" : ""})`)];
   }
   // total value now (cash + holdings at verified prices), for the 30% cap on any single buy
   function totalValue() { const p = positions(); let v = p.cash; Object.entries(p.pos).forEach(([k, x]) => { const q = pi.quotes[k]; if (q && pi.fx && x.units > 0) v += x.units * eur(q.price); }); return v; }
   async function acceptSuggestion(auto) {
     const s = suggestion(); if (!s || s.hold) return "";
-    let money = 0; const done = [];
-    if (s.sell) { const e = await trade("sell", s.sell.sym, s.sell.eur, `Suggestion: sell ${s.sell.pct}%${auto ? " (approved with Face ID)" : ""}`); if (!e) return ""; money = e.eur; done.push(`sold €${fmt(e.eur)} of ${nameOf(s.sell.sym)}`); }
-    if (s.buy) { const cap = totalValue() * 0.30, want = s.sell ? money : positions().cash, amt = Math.min(want, cap);
-      const e = amt > 0.5 ? await trade("buy", s.buy, amt, `Suggestion${auto ? " (approved with Face ID)" : ""}`) : null;
-      if (e) done.push(`bought €${fmt(e.eur)} of ${nameOf(s.buy)}${want - amt > 0.5 ? ` (capped at 30% of the portfolio; €${fmt(want - amt)} stays as cash)` : ""}`); }
+    const done = [], tag = auto ? " (approved with Face ID)" : "", plan = s.count > 1 ? ` (plan of ${s.count})` : "";
+    // sells first, then the money (sells plus any idle cash) is split between the buys, each capped at 30% of the portfolio
+    for (const x of s.sells) { const e = await trade("sell", x.sym, x.eur, `Suggestion${plan}: sell ${x.pct}%${tag}`); if (e) done.push(`sold €${fmt(e.eur)} of ${nameOf(x.sym)}`); }
+    let left = s.buys.length, kept = 0;
+    for (const b of s.buys) { const cash = positions().cash, want = cash / left--, amt = Math.min(want, totalValue() * 0.30);
+      const e = amt > 0.5 ? await trade("buy", b, amt, `Suggestion${plan}${tag}`) : null;
+      if (e) { done.push(`bought €${fmt(e.eur)} of ${nameOf(b)}`); kept += want - e.eur; } }
     await decide("done");
-    const summary = done.length ? "Done (virtual money): " + done.join(", ") + "." : "Nothing could be traded right now (no up-to-date price).";
+    const summary = done.length ? "Done (virtual money): " + done.join(", ") + "." + (kept > 0.5 ? ` €${fmt(kept)} stays as cash (no single buy over 30% of the portfolio).` : "") : "Nothing could be traded right now (no up-to-date price).";
     if (!auto) F.toast(summary);
     draw(); return summary;
   }
@@ -209,11 +223,12 @@
     const dec = F.store.mode === "demo" ? (pi.demoDec || "") : helperVal(DEC);
     if (dec.split("|")[1] === s.code && /approved$|executing/.test(dec)) return `<article class="card pi-sugg"><div class="card-head"><span class="ico">${F.icon("check")}</span><div class="grow"><h3>Approved on your iPhone</h3><div class="row-sub">Carrying it out…</div></div></div></article>`;
     if (s.answered) return "";
-    const what = [s.sell ? `Sell ${s.sell.pct}% of ${nameOf(s.sell.sym)} (≈ €${fmt(s.sell.eur)})` : "", s.buy ? (s.sell ? `buy ${nameOf(s.buy)} with it` : `Buy ${nameOf(s.buy)} with your €${fmt(s.cash)} of virtual cash`) : ""].filter(Boolean).join(" and ");
-    return `<article class="card pi-sugg"><div class="card-head"><span class="ico" style="--tint:var(--coral)">${F.icon("sun")}</span><div class="grow"><h3>Today's suggestion</h3><div class="row-sub">Worked out from your holdings and the latest prices</div></div></div>
-      <p class="pi-sugg-what">${F.esc(what)}.</p><p class="row-sub">Why: ${F.esc(s.why)}</p>
-      <div class="acts pi-sugg-acts"><button class="btn btn-primary" data-pi="sugg-phone">${F.icon("lock")}Send to my iPhone (Face ID)</button><button class="btn" data-pi="sugg-explain">${F.icon("mic")}Jarvis, explain</button><button class="btn btn-ghost" data-pi="sugg-no">Not today</button></div>
-      <p class="row-sub" style="margin-top:6px">Simple rules, not advice: sell a holding down 15%; once up 20%, sell half if it slips 8% from its best (let winners run); trim anything oversized; buy the tracked stock nearest its 52-week high unless the news says avoid; no single buy over 30% of the portfolio; no new trades after a 10% bad week.</p></article>`;
+    const lines = planLines(s), many = s.count > 1;
+    return `<article class="card pi-sugg"><div class="card-head"><span class="ico" style="--tint:var(--coral)">${F.icon("sun")}</span><div class="grow"><h3>${many ? `Today's plan: ${s.count} changes` : "Today's suggestion"}</h3><div class="row-sub">Worked out from your holdings and the latest prices${many ? "; one Face ID on your iPhone makes them all, sells first" : ""}</div></div></div>
+      ${many ? `<ol class="pi-plan">${lines.map(l => `<li>${F.esc(l)}</li>`).join("")}</ol>` : `<p class="pi-sugg-what">${F.esc(lines[0] || "")}.</p>`}
+      <p class="row-sub">Why: ${F.esc(s.why)}</p>
+      <div class="acts pi-sugg-acts"><button class="btn btn-primary" data-pi="sugg-phone">${F.icon("lock")}${many ? `Approve all ${s.count} (Face ID)` : "Approve (Face ID)"}</button><button class="btn" data-pi="sugg-explain">${F.icon("mic")}Jarvis, explain</button><button class="btn btn-ghost" data-pi="sugg-no">Not today</button></div>
+      <p class="row-sub" style="margin-top:6px">Simple rules, not advice: sell a holding down 15%; once up 20%, sell half if it slips 8% from its best (let winners run); trim anything oversized; buy the tracked stocks nearest their 52-week high unless the news says avoid; no single buy over 30% of the portfolio; no new trades after a 10% bad week.</p></article>`;
   }
   // News check (twice a day) shown under the suggestion
   function researchHtml() {
