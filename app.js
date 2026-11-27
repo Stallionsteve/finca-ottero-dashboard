@@ -2270,7 +2270,22 @@
     el.scrollTop = el.scrollHeight;
   }
   function addMsg(who, text) { J.log.push({ who, text }); drawLog(); }
-  function primeAudio() { if (!J.audio) { J.audio = new Audio(); } J.audio.src = silentWav; J.audio.play().catch(() => {}); }
+  function primeAudio() { if (!J.audio) { J.audio = new Audio(); J.audio.addEventListener("ended", () => setTimeout(releaseAudio, 400)); } clearTimeout(J.audioRel); J.audio.src = silentWav; J.audio.play().catch(() => {}); }
+  // 27 Nov (owner): the Finca logo stayed in the iPhone's Dynamic Island after the app was closed. iOS keeps a web app's
+  // audio "Now Playing" while its player, sound engine or microphone is still open, so all three are let go when not in use.
+  function releaseAudio() {
+    if (J.audio && (J.audio.paused || J.audio.ended)) { try { J.audio.removeAttribute("src"); J.audio.load(); } catch { /* ignore */ } }
+    try { if ("mediaSession" in navigator) { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = "none"; } } catch { /* ignore */ }
+    try { if (navigator.audioSession) navigator.audioSession.type = "auto"; } catch { /* older iOS */ }
+  }
+  function releaseAll() {
+    if (J.audio) { try { J.audio.pause(); } catch { /* ignore */ } }
+    releaseAudio();
+    if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; }
+    try { if (sfx.ctx) { sfx.ctx.close().catch(() => {}); sfx.ctx = null; } } catch { /* not set up yet */ }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); });
+  window.addEventListener("pagehide", releaseAll);
   async function deliver(speech, ttsUrl) {
     addMsg("j", speech || "I'm afraid I have no answer for that.");
     const reply = jReply();
@@ -2502,7 +2517,7 @@
       voiceBlip(false);
       J.listening = null; $("#jmic") && $("#jmic").classList.remove("listening"); J.analyser = null; if (hud.on) hud.state("thinking");
       proc.disconnect(); src.disconnect(); ctx.close();
-      J.micRelease = setTimeout(() => { if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; } }, 120000);
+      J.micRelease = setTimeout(() => { if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; releaseAudio(); } }, 20000);
       if (handler !== null) store.conn.socket.send(new Uint8Array([handler]));
       handler = null;  // nothing more may be sent for this run (stray audio caused "non-existing handler" errors)
     };
@@ -2893,6 +2908,7 @@
   function sfxCtx() {
     if (!sfx.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { sfx.ctx = new C(); } catch { return null; } }
     if (sfx.ctx.state === "suspended") sfx.ctx.resume().catch(() => {});
+    clearTimeout(sfx.idle); sfx.idle = setTimeout(() => { if (sfx.ctx) { sfx.ctx.close().catch(() => {}); sfx.ctx = null; } }, 3000);
     return sfx.ctx;
   }
   function sfxTone(c, t0, f0, f1, dur, vol, type) {
