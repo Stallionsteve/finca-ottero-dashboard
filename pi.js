@@ -224,10 +224,10 @@
     if (dec.split("|")[1] === s.code && /approved$|executing/.test(dec)) return `<article class="card pi-sugg"><div class="card-head"><span class="ico">${F.icon("check")}</span><div class="grow"><h3>Approved on your iPhone</h3><div class="row-sub">Carrying it out…</div></div></div></article>`;
     if (s.answered) return "";
     const lines = planLines(s), many = s.count > 1;
-    return `<article class="card pi-sugg"><div class="card-head"><span class="ico" style="--tint:var(--coral)">${F.icon("sun")}</span><div class="grow"><h3>${many ? `Today's plan: ${s.count} changes` : "Today's suggestion"}</h3><div class="row-sub">Worked out from your holdings and the latest prices${many ? "; one Face ID on your iPhone makes them all, sells first" : ""}</div></div></div>
+    return `<article class="card pi-sugg"><div class="card-head"><span class="ico" style="--tint:var(--coral)">${F.icon("sun")}</span><div class="grow"><h3>${many ? `Today's plan: ${s.count} changes` : "Today's suggestion"}</h3><div class="row-sub">Worked out from your holdings and the latest prices${many ? "; agree here, then confirm with Face ID on your iPhone and they are all made, sells first" : ""}</div></div></div>
       ${many ? `<ol class="pi-plan">${lines.map(l => `<li>${F.esc(l)}</li>`).join("")}</ol>` : `<p class="pi-sugg-what">${F.esc(lines[0] || "")}.</p>`}
       <p class="row-sub">Why: ${F.esc(s.why)}</p>
-      <div class="acts pi-sugg-acts"><button class="btn btn-primary" data-pi="sugg-phone">${F.icon("lock")}${many ? `Approve all ${s.count} (Face ID)` : "Approve (Face ID)"}</button><button class="btn" data-pi="sugg-explain">${F.icon("mic")}Jarvis, explain</button><button class="btn btn-ghost" data-pi="sugg-no">Not today</button></div>
+      <div class="acts pi-sugg-acts"><button class="btn btn-primary" data-pi="sugg-phone">${F.icon("lock")}${many ? `Agree to these ${s.count} trades` : "Agree to this trade"}</button><button class="btn" data-pi="sugg-explain">${F.icon("mic")}Jarvis, explain</button><button class="btn btn-ghost" data-pi="sugg-no">Not today</button></div>
       <p class="row-sub" style="margin-top:6px">Simple rules, not advice: sell a holding down 15%; once up 20%, sell half if it slips 8% from its best (let winners run); trim anything oversized; buy the tracked stocks nearest their 52-week high unless the news says avoid; no single buy over 30% of the portfolio; no new trades after a 10% bad week.</p></article>`;
   }
   // News check (twice a day) shown under the suggestion
@@ -323,7 +323,7 @@
     if (a === "untrack") { await setWatch(watchList().filter(x => x !== sym)); draw(); return; }
     if (a === "sugg-yes") { b.disabled = true; await acceptSuggestion(); return; }
     if (a === "sugg-phone") { if (F.store.mode === "demo") { F.toast("Demo: on the real system your iPhone gets the request; Approve needs Face ID."); return; }
-      F.svc("script", "turn_on", {}, { entity_id: "script.finca_pi_request_approval" }).then(() => F.toast("Sent to your iPhone. Approve there with Face ID.")).catch(() => {}); return; }
+      F.svc("script", "turn_on", {}, { entity_id: "script.finca_pi_request_approval" }).then(() => F.toast("Sent to your iPhone. Confirm there with Face ID to make the trades.")).catch(() => {}); return; }
     if (a === "sugg-explain") { F.ask("What's my stock suggestion?"); return; }
     if (a === "sugg-no") { await decide("dismissed"); F.toast("OK, not today."); draw(); return; }
     if (b.dataset.pi === "start") { if (!started()) await startPortfolio(); }
