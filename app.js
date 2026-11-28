@@ -2281,7 +2281,8 @@
     el.scrollTop = el.scrollHeight;
   }
   function addMsg(who, text) { J.log.push({ who, text }); drawLog(); }
-  function primeAudio() { if (!J.audio) { J.audio = new Audio(); J.audio.addEventListener("ended", () => setTimeout(releaseAudio, 400)); } clearTimeout(J.audioRel); J.audio.src = silentWav; J.audio.play().catch(() => {}); }
+  function primeAudio() { if (!J.audio) { J.audio = new Audio(); J.audio.addEventListener("ended", () => { keepAwake(false); setTimeout(releaseAudio, 400); });
+    J.audio.addEventListener("playing", () => { if (speaking()) keepAwake(true); }); J.audio.addEventListener("error", () => keepAwake(false)); } clearTimeout(J.audioRel); J.audio.src = silentWav; J.audio.play().catch(() => {}); }
   // 27 Nov (owner): the Finca logo stayed in the iPhone's Dynamic Island after the app was closed. iOS keeps a web app's
   // audio "Now Playing" while its player, sound engine or microphone is still open, so all three are let go when not in use.
   function releaseAudio() {
@@ -2289,13 +2290,23 @@
     try { if ("mediaSession" in navigator) { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = "none"; } } catch { /* ignore */ }
     try { if (navigator.audioSession) navigator.audioSession.type = "auto"; } catch { /* older iOS */ }
   }
-  function releaseAll() {
-    if (J.audio) { try { J.audio.pause(); } catch { /* ignore */ } }
-    releaseAudio();
+  // 28 Nov (owner): the morning briefing was cut off when the iPhone screen went dark. A reply that is still being spoken
+  // now carries on (it lets go of the audio itself when it ends); only when the app is really closed is it stopped.
+  const speaking = () => !!(J.audio && !J.audio.paused && !J.audio.ended && J.audio.currentSrc && !/^data:/.test(J.audio.currentSrc));
+  async function keepAwake(on) {
+    try {
+      if (on && !J.wake && "wakeLock" in navigator && !document.hidden) { J.wake = await navigator.wakeLock.request("screen"); J.wake.addEventListener("release", () => { J.wake = null; }); }
+      if (!on && J.wake) { await J.wake.release(); J.wake = null; }
+    } catch { J.wake = null; /* not supported here: fine */ }
+  }
+  function releaseAll(ev) {
+    const closing = ev && ev.type === "pagehide";
+    if (J.audio && (closing || !speaking())) { try { J.audio.pause(); } catch { /* ignore */ } }
+    if (closing || !speaking()) releaseAudio();
     if (J.mic && !J.listening) { J.mic.getTracks().forEach(t => t.stop()); J.mic = null; }
     try { if (sfx.ctx) { sfx.ctx.close().catch(() => {}); sfx.ctx = null; } } catch { /* not set up yet */ }
   }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); else if (speaking()) keepAwake(true); });
   window.addEventListener("pagehide", releaseAll);
   async function deliver(speech, ttsUrl) {
     addMsg("j", speech || "I'm afraid I have no answer for that.");
